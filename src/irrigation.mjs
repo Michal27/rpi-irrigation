@@ -43,15 +43,19 @@ export default class Irrigation {
 	}
 
 	_irrigationCycle() {
-		let moistureSensorsCycleData = 
-		this._moistureSensors.map((moistureSensor, index) => {
-			let moistureSensorData = this._getMoistureSensorData(moistureSensor, this._moistureSensorsPower[index]);
+		if (this._isIrrigationDayTime()) {
+			let moistureSensorsCycleData = [];
 
-			if (this._isMoistureSensorOutOfWater(moistureSensorData) && !this._isTankEmpty()) {
-				this._activateWaterTankPump();
-				this._activateFlowerpotPump(this._flowerpotPumps[index]);
-			}
-		});
+			this._moistureSensors.map((moistureSensor, index) => {
+				let moistureSensorData = this._getMoistureSensorData(moistureSensor, this._moistureSensorsPower[index]);
+				moistureSensorsCycleData.push(moistureSensorData);
+
+				if (this._isMoistureSensorOutOfWater(moistureSensorData) && !this._isTankEmpty()) {
+					this._activateWaterTankPump();
+					this._activateFlowerpotPump(this._flowerpotPumps[index]);
+				}
+			});
+		}
 	}
 
 	_inicializeGpioPin(gpioPins, gpioType, initValue = null) {
@@ -117,6 +121,12 @@ export default class Irrigation {
 		await this._sleep(6000);
 
 		pump.writeSync(Gpio.HIGH);
+	}
+
+	_isIrrigationDayTime() {
+		const actualDayTime = new Date().getHours() + 2; //CZ summer time
+
+		return actualDayTime >= 8 && actualDayTime <= 20;
 	}
 
 	_sleep(ms) {
