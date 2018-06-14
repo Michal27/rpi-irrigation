@@ -3,13 +3,18 @@ import OnOff from 'onoff';
 
 const Gpio = OnOff.Gpio;
 
+const IRRIGATION_CYCLE_INTERVAL = 3600000; //miliseconds = 1 hour
+const DATA_HISTORY_LIMIT = 60; //irrigation cycles measurement history
+
 const moistureSensorsPowerPins = [14, 15, 18, 23, 24, 25];
 const moistureSensorsDataPins = [8, 7, 12, 16, 20, 21];
 const flowerpotPumpsPins = [11, 5, 6, 13, 19, 26];
 const waterTankLevelSensorPin = 2;
 const waterTankPumpPin = 3;
-
-const IRRIGATION_CYCLE_INTERVAL = 3600000; //miliseconds = 1 hour
+const smallTankBottomSensorPin = 9;
+const smallTankBottomSensorPowerPin = 10
+const smallTankTopSensorPin = 22;
+const smallTankTopSensorPin = 27;
 
 export default class Irrigation {
 
@@ -19,6 +24,9 @@ export default class Irrigation {
 		this._moistureSensorsPower = this._inicializeGpioPins(moistureSensorsPowerPins, 'out', Gpio.LOW);
 		this._moistureSensors = this._inicializeGpioPins(moistureSensorsDataPins, 'in');
 		this._waterTankLevelSensor = this._inicializeGpioPins(waterTankLevelSensorPin, 'in');
+		this._smallTankBottomSensor = this._inicializeGpioPin(smallTankBottomSensor, 'in');
+
+		this.moistureSensorsDataHistory = {};
 	}
 
 
@@ -55,7 +63,27 @@ export default class Irrigation {
 					this._activateFlowerpotPump(this._flowerpotPumps[index]);
 				}
 			});
+
+			_storeDataToHistory(moistureSensorsCycleData);
 		}
+	}
+
+	_storeDataToHistory(moistureSensorsCycleData) {
+		const actualDate = this._getActualCZDate();
+		const dataHistoryKeys = Object.keys(this.moistureSensorsDataHistory);
+
+		this.moistureSensorsDataHistory[actualDate.toUTCString()] = moistureSensorsCycleData;
+
+		if (dataHistoryKeys.length > DATA_HISTORY_LIMIT) {
+			this.moistureSensorsDataHistory.delete(dataHistoryKeys[0]);
+		}
+	}
+
+	_getActualCZDate() {
+		const actualDate = new Date();
+		actualDate.setHours(actualDate.getHours() + 2); //CZ summer time
+
+		return actualDate;
 	}
 
 	_inicializeGpioPin(gpioPins, gpioType, initValue = null) {
@@ -124,9 +152,10 @@ export default class Irrigation {
 	}
 
 	_isIrrigationDayTime() {
-		const actualDayTime = new Date().getHours() + 2; //CZ summer time
+		const actualDate = this._getActualCZDate();
+		const actualDayHours = actualDate.getHours();
 
-		return actualDayTime >= 8 && actualDayTime <= 20;
+		return actualDayHours >= 8 && actualDayHours <= 20;
 	}
 
 	_sleep(ms) {
