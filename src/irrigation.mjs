@@ -91,7 +91,9 @@ export default class Irrigation {
 	_getCurrentDayHistoryData() {
 		const actualDate = this._getActualCZDate();
 		const dataHistoryKeys = Object.keys(this._moistureSensorsDataHistory);
-		let result = [0, 0, 0, 0, 0, 0];
+		let result = this._moistureSensors.map((moistureSensor) => {
+			return 0;
+		});
 
 		dataHistoryKeys.filter((key) => {
 			new Date(key).getDay() === actualDate.getDay()
