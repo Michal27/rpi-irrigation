@@ -12,10 +12,12 @@ const moistureSensorsDataPins = [8, 7, 12, 16, 20, 21];
 const flowerpotPumpsPins = [11, 5, 6, 13, 19, 26];
 const waterTankLevelSensorPin = 2;
 const waterTankPumpPin = 3;
-const smallTankBottomSensorPin = 9;
 const smallTankBottomSensorPowerPin = 10
+const smallTankBottomSensorPin = 9;
+const smallTankTopSensorPowerPin = 27;
 const smallTankTopSensorPin = 22;
-const smallTankTopSensorPin = 27;
+const safetyPin1 = 17;
+const safetyPin2 = 4;
 
 export default class Irrigation {
 
@@ -54,12 +56,12 @@ export default class Irrigation {
 		setInterval(this._irrigationCycle, IRRIGATION_CYCLE_INTERVAL);
 	}
 
-	_irrigationCycle() {
+	async _irrigationCycle() {
 		if (this._isIrrigationDayTime()) {
 			let moistureSensorsCycleData = [];
 			const currentDayHistoryData = this._getCurrentDayHistoryData();
 
-			this._moistureSensors.map((moistureSensor, index) => {
+			for (const [index, moistureSensor] of this._moistureSensors.entries()) {
 				let moistureSensorData = this._getMoistureSensorData(moistureSensor, this._moistureSensorsPower[index]);
 				moistureSensorsCycleData.push(moistureSensorData);
 
@@ -68,10 +70,10 @@ export default class Irrigation {
 					!this._isTankEmpty() &&
 					currentDayHistoryData[index] < DAY_IRRIGATION_LIMIT
 				) {
-					this._activateWaterTankPump();
-					this._activateFlowerpotPump(this._flowerpotPumps[index]);
+					await this._activateWaterTankPump();
+					await this._activateFlowerpotPump(this._flowerpotPumps[index]);
 				}
-			});
+			}
 
 			_storeDataToHistory(moistureSensorsCycleData);
 		}
@@ -91,7 +93,7 @@ export default class Irrigation {
 	_getCurrentDayHistoryData() {
 		const actualDate = this._getActualCZDate();
 		const dataHistoryKeys = Object.keys(this._moistureSensorsDataHistory);
-		let result = this._moistureSensors.map((moistureSensor) => {
+		let result = this._moistureSensors.map(() => {
 			return 0;
 		});
 
@@ -168,6 +170,8 @@ export default class Irrigation {
 		await this._sleep(5000);
 
 		this._waterTankPump.writeSync(Gpio.HIGH);
+
+		return 0;
 	}
 
 	async _activateFlowerpotPump(pump) {
@@ -176,6 +180,8 @@ export default class Irrigation {
 		await this._sleep(6000);
 
 		pump.writeSync(Gpio.HIGH);
+
+		return 0;
 	}
 
 	_isIrrigationDayTime() {
