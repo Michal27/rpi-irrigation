@@ -22,11 +22,11 @@ const safetyPin2 = 4;
 export default class Irrigation {
 
 	constructor() {
-		this._flowerpotPumps = this._inicializeGpioPin(flowerpotPumpsPins, 'out', Gpio.HIGH);
+		this._flowerpotPumps = this._inicializeGpioPins(flowerpotPumpsPins, 'out', Gpio.HIGH);
 		this._waterTankPump = this._inicializeGpioPin(waterTankPumpPin, 'out', Gpio.HIGH);
 		this._moistureSensorsPower = this._inicializeGpioPins(moistureSensorsPowerPins, 'out', Gpio.LOW);
 		this._moistureSensors = this._inicializeGpioPins(moistureSensorsDataPins, 'in');
-		this._waterTankLevelSensor = this._inicializeGpioPins(waterTankLevelSensorPin, 'in');
+		this._waterTankLevelSensor = this._inicializeGpioPin(waterTankLevelSensorPin, 'in');
 		this._smallTankBottomSensorPower = this._inicializeGpioPin(smallTankBottomSensorPowerPin, 'out', Gpio.LOW);
 		this._smallTankBottomSensor = this._inicializeGpioPin(smallTankBottomSensorPin, 'in');
 		this._smallTankTopSensorPower = this._inicializeGpioPin(smallTankTopSensorPowerPin, 'out', Gpio.LOW);
@@ -57,6 +57,8 @@ export default class Irrigation {
 	}
 
 	async test() {
+		console.log('Inicialization completed');
+
 		await this._activateWaterTankPump();
 
 		for (let pump of this._flowerpotPumps) {
@@ -130,10 +132,10 @@ export default class Irrigation {
 		return actualDate;
 	}
 
-	_inicializeGpioPin(gpioPins, gpioType, initValue = null) {
-		const gpioPin = new Gpio(gpioPins, gpioType);
+	_inicializeGpioPin(pinNumber, gpioType, initValue = null) {
+		const gpioPin = new Gpio(pinNumber, gpioType);
 
-		if (initData && gpioType === 'out') {
+		if (initValue && gpioType === 'out') {
 			gpioPin.writeSync(initValue);
 		}
 
@@ -159,10 +161,10 @@ export default class Irrigation {
 	}
 
 	_getMoistureSensorData(moistureSensor, moistureSensorPower) {
-		const moistureSensorData = 1;
+		let moistureSensorData = 1;
 
 		this._activateMoistureSensor(moistureSensorPower);
-		moistureSensorData = this._readSensorData(moistureSensor);
+		moistureSensorData = moistureSensor.readSync();
 		this._deactivateMoistureSensor(moistureSensorPower);
 
 		return moistureSensorData;
@@ -179,7 +181,6 @@ export default class Irrigation {
 	async _activateWaterTankPump() {
 		let smallTankTopSensorData = Gpio.HIGH;
 
-		this._activateMoistureSensor(this._smallTankTopSensorPowerPin);
 		this._waterTankPump.writeSync(Gpio.LOW);
 
 		for (let i = 0; i < 50; i++) {
@@ -196,7 +197,6 @@ export default class Irrigation {
 		}
 
 		this._waterTankPump.writeSync(Gpio.HIGH);
-		this._deactivateMoistureSensor(this._smallTankTopSensorPowerPin);
 
 		return 0;
 	}
@@ -204,7 +204,6 @@ export default class Irrigation {
 	async _activateFlowerpotPump(pump) {
 		let smallTankBottomSensorData = Gpio.HIGH;
 
-		this._activateMoistureSensor(this._smallTankBottomSensorPowerPin);
 		pump.writeSync(Gpio.LOW);
 
 		for (let i = 0; i < 60; i++) {
@@ -221,7 +220,6 @@ export default class Irrigation {
 		}
 
 		pump.writeSync(Gpio.HIGH);
-		this._deactivateMoistureSensor(this._smallTankBottomSensorPowerPin);
 
 		return 0;
 	}
