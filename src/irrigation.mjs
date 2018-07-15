@@ -56,6 +56,21 @@ export default class Irrigation {
 		setInterval(this._irrigationCycle, IRRIGATION_CYCLE_INTERVAL);
 	}
 
+	async test() {
+		await this._activateWaterTankPump();
+
+		for (let pump of this._flowerpotPumps) {
+			await this._activateFlowerpotPump(pump);
+		}
+
+		for (let sensor of this._moistureSensorsPower) {
+			this._activateMoistureSensor(sensor);
+			await this._sleep(1000);
+		}
+
+		return 0;
+	}
+
 	async _irrigationCycle() {
 		if (this._isIrrigationDayTime()) {
 			let moistureSensorsCycleData = [];
@@ -143,43 +158,70 @@ export default class Irrigation {
 		return sensor.readSync();
 	}
 
-	async _getMoistureSensorData(moistureSensor, moistureSensorPower) {
+	_getMoistureSensorData(moistureSensor, moistureSensorPower) {
 		const moistureSensorData = 1;
 
-		this._activateMoistureSensor(moistureSensor);
-		await this._sleep(500);
-
+		this._activateMoistureSensor(moistureSensorPower);
 		moistureSensorData = this._readSensorData(moistureSensor);
-
-		this._deactivateMoistureSensor(moistureSensor);
+		this._deactivateMoistureSensor(moistureSensorPower);
 
 		return moistureSensorData;
 	}
 
 	_isTankEmpty() {
-		return this._waterTankLevelSensor.readSync() === 0;
+		return this._waterTankLevelSensor.readSync() === Gpio.LOW;
 	}
 
 	_isMoistureSensorOutOfWater(gpioValue) {
-		return gpioValue === 0;
+		return gpioValue === Gpio.HIGH;
 	}
 
 	async _activateWaterTankPump() {
+		let smallTankTopSensorData = Gpio.HIGH;
+
+		this._activateMoistureSensor(this._smallTankTopSensorPowerPin);
 		this._waterTankPump.writeSync(Gpio.LOW);
 
-		await this._sleep(5000);
+		for (let i = 0; i < 50; i++) {
+			smallTankTopSensorData = this._getMoistureSensorData(
+				this._smallTankTopSensor,
+				this._smallTankTopSensorPower
+			);
+
+			if (!this._isMoistureSensorOutOfWater(smallTankTopSensorData)) {
+				break;
+			}
+
+			await this._sleep(100);
+		}
 
 		this._waterTankPump.writeSync(Gpio.HIGH);
+		this._deactivateMoistureSensor(this._smallTankTopSensorPowerPin);
 
 		return 0;
 	}
 
 	async _activateFlowerpotPump(pump) {
+		let smallTankBottomSensorData = Gpio.HIGH;
+
+		this._activateMoistureSensor(this._smallTankBottomSensorPowerPin);
 		pump.writeSync(Gpio.LOW);
 
-		await this._sleep(6000);
+		for (let i = 0; i < 60; i++) {
+			smallTankBottomSensorData = this._getMoistureSensorData(
+				this._smallTankBottomSensor,
+				this._smallTankBottomSensorPower
+			);
+
+			if (this._isMoistureSensorOutOfWater(smallTankBottomSensorData)) {
+				break;
+			}
+
+			await this._sleep(100);
+		}
 
 		pump.writeSync(Gpio.HIGH);
+		this._deactivateMoistureSensor(this._smallTankBottomSensorPowerPin);
 
 		return 0;
 	}
