@@ -59,15 +59,20 @@ export default class Irrigation {
 	async test() {
 		console.log('Inicialization completed');
 
-		await this._activateWaterTankPump();
+		this._waterTankPump.writeSync(Gpio.Low);
+		await this._sleep(1000);
+		this._waterTankPump.writeSync(Gpio.HIGH);
 
 		for (let pump of this._flowerpotPumps) {
-			await this._activateFlowerpotPump(pump);
+			pump.writeSync(Gpio.LOW);
+			await this._sleep(1000);
+			pump.writeSync(Gpio.HIGH);
 		}
 
 		for (let sensor of this._moistureSensorsPower) {
 			this._activateMoistureSensor(sensor);
 			await this._sleep(1000);
+			this._deactivateMoistureSensor(sensor);
 		}
 
 		return 0;
