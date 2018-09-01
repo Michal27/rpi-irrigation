@@ -228,23 +228,35 @@ console.log(moistureSensorData);
 
 	async _activateFlowerpotPump(pump) {
 		let smallTankBottomSensorData = Gpio.HIGH;
+		let isWaterTankEmpty = false;
+
+		this._activateMoistureSensor(this._smallTankBottomSensorPower);
+		await this._sleep(100);
+
+		this._smallTankBottomSensor.watch((err, sensorData) => {
+			if (err) {
+				throw err;
+			}
+
+			if (this._isMoistureSensorOutOfWater(sensorData)) {
+				pump.writeSync(Gpio.HIGH);
+				isWaterTankEmpty = true;
+			}
+		});
 
 		pump.writeSync(Gpio.LOW);
 
-		for (let i = 0; i < 300; i++) {
-			smallTankBottomSensorData = await this._getMoistureSensorData(
-				this._smallTankBottomSensor,
-				this._smallTankBottomSensorPower
-			);
-
-			if (this._isMoistureSensorOutOfWater(smallTankBottomSensorData)) {
+		for (let i = 0; i < 900; i++) {
+			if (isWaterTankEmpty) {
 				break;
 			}
 
 			await this._sleep(100);
 		}
 
+		this._smallTankBottomSensor.unwatch();
 		pump.writeSync(Gpio.HIGH);
+		this._deactivateMoistureSensor(this._smallTankBottomSensorPower);
 
 		return 0;
 	}
