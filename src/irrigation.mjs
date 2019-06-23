@@ -3,9 +3,9 @@ import OnOff from 'onoff';
 
 const Gpio = OnOff.Gpio;
 
-const IRRIGATION_CYCLE_INTERVAL = 180000; //miliseconds = 1 min
+const IRRIGATION_CYCLE_INTERVAL = 7200000; //miliseconds = 2 hours
 const DATA_HISTORY_LIMIT = 60; //irrigation cycles measurement history
-const DAY_IRRIGATION_LIMIT = 2;
+const DAY_IRRIGATION_LIMIT = 3;
 
 const moistureSensorsPowerPins = [14, 15, 18, 23, 24, 25];
 const moistureSensorsDataPins = [8, 7, 12, 16, 20, 21];
@@ -192,7 +192,6 @@ console.log(moistureSensorData);
 	}
 
 	async _activateWaterTankPump() {
-		let smallTankTopSensorData = Gpio.HIGH;
 		let isWaterTankFull = false;
 
 		this._activateMoistureSensor(this._smallTankTopSensorPower);
@@ -211,7 +210,7 @@ console.log(moistureSensorData);
 
 		this._waterTankPump.writeSync(Gpio.LOW);
 
-		for (let i = 0; i < 450; i++) {
+		for (let i = 0; i < 300; i++) {
 			if (isWaterTankFull) {
 				break;
 			}
@@ -227,7 +226,6 @@ console.log(moistureSensorData);
 	}
 
 	async _activateFlowerpotPump(pump) {
-		let smallTankBottomSensorData = Gpio.HIGH;
 		let isWaterTankEmpty = false;
 
 		this._activateMoistureSensor(this._smallTankBottomSensorPower);
@@ -246,7 +244,7 @@ console.log(moistureSensorData);
 
 		pump.writeSync(Gpio.LOW);
 
-		for (let i = 0; i < 900; i++) {
+		for (let i = 0; i < 6000; i++) {
 			if (isWaterTankEmpty) {
 				break;
 			}
