@@ -7,7 +7,7 @@ const IRRIGATION_CYCLE_INTERVAL = 7200000; //miliseconds = 2 hours
 const DATA_HISTORY_LIMIT = 60; //irrigation cycles measurement history
 const DAY_IRRIGATION_LIMIT = 3;
 
-const moistureSensorsPowerPins = [14, 15, 18, 23, 24, 25];
+const moistureSensorsPowerPin = 25;
 const moistureSensorsDataPins = [8, 7, 12, 16, 20, 21];
 const flowerpotPumpsPins = [11, 5, 6, 13, 19, 26];
 const waterTankLevelSensorPin = 2;
@@ -24,7 +24,7 @@ export default class Irrigation {
 	constructor() {
 		this._flowerpotPumps = this._inicializeGpioPins(flowerpotPumpsPins, 'high');
 		this._waterTankPump = this._inicializeGpioPin(waterTankPumpPin, 'high');
-		this._moistureSensorsPower = this._inicializeGpioPins(moistureSensorsPowerPins, 'low');
+		this._moistureSensorsPower = this._inicializeGpioPin(moistureSensorsPowerPin, 'high');
 		this._moistureSensors = this._inicializeGpioPins(moistureSensorsDataPins, 'in');
 		this._waterTankLevelSensor = this._inicializeGpioPin(waterTankLevelSensorPin, 'in');
 		this._smallTankBottomSensorPower = this._inicializeGpioPin(smallTankBottomSensorPowerPin, 'low');
@@ -82,28 +82,27 @@ export default class Irrigation {
 			pump.writeSync(Gpio.HIGH);
 		}
 
-		for (let sensor of this._moistureSensorsPower) {
-			this._activateMoistureSensor(sensor);
-			await this._sleep(1000);
-			this._deactivateMoistureSensor(sensor);
-		}
+		this._moistureSensorsPower.writeSync(Gpio.LOW);
+		await this._sleep(1000);
+		this._moistureSensorsPower.writeSync(Gpio.HIGH);
 
 		return 0;
 	}
 
 	async _irrigationCycle() {
 		if (this._isIrrigationDayTime()) {
-			let moistureSensorsCycleData = [];
 			const currentDayHistoryData = this._getCurrentDayHistoryData();
+			const moistureSensorsCycleData = await this._getMoistureSensorsData(
+				this._moistureSensors,
+				this._moistureSensorsPower
+			);
 
-			for (const [index, moistureSensor] of this._moistureSensors.entries()) {
-				let moistureSensorData = await this._getMoistureSensorData(moistureSensor, this._moistureSensorsPower[index]);
-				moistureSensorsCycleData.push(moistureSensorData);
-console.log(moistureSensorData);
+			for (let index = 0; index < moistureSensorsCycleData.length; index++) {
 				if (
-					this._isMoistureSensorOutOfWater(moistureSensorData) &&
+					this._isMoistureSensorOutOfWater(moistureSensorsCycleData[index]) &&
 					!this._isTankEmpty() &&
-					currentDayHistoryData[index] < DAY_IRRIGATION_LIMIT
+					currentDayHistoryData[index] < DAY_IRRIGATION_LIMIT &&
+					this._flowerpotPumps[index]
 				) {
 					await this._activateWaterTankPump();
 					await this._activateFlowerpotPump(this._flowerpotPumps[index]);
@@ -172,15 +171,22 @@ console.log(moistureSensorData);
 		return sensor.readSync();
 	}
 
-	async _getMoistureSensorData(moistureSensor, moistureSensorPower) {
-		let moistureSensorData = 1;
+	async _getMoistureSensorsData(moistureSensors, moistureSensorsPower) {
+		let result = [];
 
-		this._activateMoistureSensor(moistureSensorPower);
+		// Activated by Gpio.LOW because of EM Relay switching
+		moistureSensorsPower.writeSync(Gpio.LOW);
 		await this._sleep(100);
-		moistureSensorData = moistureSensor.readSync();
-		this._deactivateMoistureSensor(moistureSensorPower);
 
-		return moistureSensorData;
+		for (moistureSensor of moistureSensors) {
+			result.push(moistureSensor.readSync());
+			await this._sleep(50);
+		}
+
+		// Deactivated by Gpio.HIGH because of EM Relay switching
+		moistureSensorsPower.writeSync(Gpio.HIGH);
+
+		return result;
 	}
 
 	_isTankEmpty() {
