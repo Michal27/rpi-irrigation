@@ -1,18 +1,18 @@
 import sensor from 'node-dht-sensor';
 
-const GPIO_DATA_PIN = 4;
 const SENSOR_VERSION = 22;
 
 export default class Dht22Sensor {
 
-	constructor() {
+	constructor(gpioDataPin) {
 		this._sensor = sensor;
+		this._gpioDataPin = gpioDataPin;
 	}
 
 	getData() {
 		const sensorData = this._readSensorData();
 
-		if (sensorData.errors || !sensorData.isValid) {
+		if (sensorData.errors > 3 || !sensorData.isValid) {
 			this._handleError();
 			return {
 				temperature: 0,
@@ -29,7 +29,7 @@ export default class Dht22Sensor {
 	getTemperature() {
 		const sensorData = this._readSensorData();
 
-		if (sensorData.errors || !sensorData.isValid) {
+		if (sensorData.errors > 3 || !sensorData.isValid) {
 			this._handleError();
 			return 0;
 		}
@@ -40,7 +40,7 @@ export default class Dht22Sensor {
 	getHumidity() {
 		const sensorData = this._readSensorData();
 
-		if (sensorData.errors || !sensorData.isValid) {
+		if (sensorData.errors > 3 || !sensorData.isValid) {
 			this._handleError();
 			return 0;
 		}
@@ -49,7 +49,7 @@ export default class Dht22Sensor {
 	}
 
 	_readSensorData() {
-		return this._sensor.read(SENSOR_VERSION, GPIO_DATA_PIN);
+		return this._sensor.read(SENSOR_VERSION, this._gpioDataPin);
 	}
 
 	_handleError() {
