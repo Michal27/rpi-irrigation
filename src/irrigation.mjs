@@ -1,5 +1,6 @@
 import Dht22Sensor from './dht22.mjs';
 import OnOff from 'onoff';
+import MCP23017 from 'node-mcp23017';
 import * as fs from 'fs';
 
 const Gpio = OnOff.Gpio;
@@ -17,8 +18,8 @@ const DAY_IRRIGATION_LIMIT = 3;
 const moistureSensorsPowerPin = 25;
 const moistureSensorsDataPins = [8, 7, 12, 16, 20, 21];
 const flowerpotPumpsPins = [11, 5, 6, 13, 19, 26];
-const waterTankLevelSensorPin = 2;
-const waterTankPumpPin = 3;
+const waterTankLevelSensorPin = 23;
+const waterTankPumpPin = 24;
 const smallTankBottomSensorPowerPin = 10
 const smallTankBottomSensorPin = 9;
 const smallTankTopSensorPowerPin = 27;
@@ -44,6 +45,7 @@ export default class Irrigation {
 		this._safetySensor1 = this._inicializeGpioPin(safetyPin1, 'in');
 		this._safetySensor2 = this._inicializeGpioPin(safetyPin2, 'in');
 		this._temperatureAndHumiditySensor = new Dht22Sensor(temperatureAndHumiditySensorPin);
+		this._mcp = new MCP23017(1, 0x20);
 
 		this._safetyShutdown = false;
 		this._safetyShutdownInterval = null;
@@ -76,8 +78,16 @@ export default class Irrigation {
 	async test() {
 		console.log('!!!RUNNING SYSTEM TEST!!!');
 		console.log('');
-		console.log('Inicialization completed');
-		console.log('');
+
+		[8,9,10,11,12,13].forEach(pin => {
+			this._mcp.pinMode(pin, this._mcp.OUTPUT);
+		});
+
+		this._mcp.digitalWrite(8, this._mcp.HIGH);
+		console.log('MCP23017 test pin 8 activated');
+		await this._sleep(2000);
+		this._mcp.digitalWrite(8, this._mcp.LOW);
+		console.log('MCP23017 test pin 8 deactivated');
 
 		this._waterTankPump.writeSync(Gpio.LOW);
 		console.log('Water tank pump activated');
@@ -200,14 +210,14 @@ export default class Irrigation {
 		try {
 			irrigationHistory = JSON.stringify(this._moistureSensorsDataHistory);
 		}
-		catch(err) {
+		catch (err) {
 			console.warn(err);
 		}
 
 		try {
 			safetyShutdownsHistory = JSON.stringify(this._safetyShutdownsHistory);
 		}
-		catch(err) {
+		catch (err) {
 			console.warn(err);
 		}
 
