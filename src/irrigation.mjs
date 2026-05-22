@@ -45,7 +45,7 @@ export default class Irrigation {
 		this._safetySensor1 = this._inicializeGpioPin(safetyPin1, 'in');
 		this._safetySensor2 = this._inicializeGpioPin(safetyPin2, 'in');
 		this._temperatureAndHumiditySensor = new Dht22Sensor(temperatureAndHumiditySensorPin);
-		this._mcp = new MCP23017(1, 0x20);
+		this._mcp = new MCP23017({address: 0x20, device: null, debug: true});
 
 		this._safetyShutdown = false;
 		this._safetyShutdownInterval = null;
@@ -79,46 +79,6 @@ export default class Irrigation {
 		console.log('!!!RUNNING SYSTEM TEST!!!');
 		console.log('');
 
-		[8,9,10,11,12,13].forEach(pin => {
-			this._mcp.pinMode(pin, this._mcp.OUTPUT);
-		});
-
-		this._mcp.digitalWrite(8, this._mcp.HIGH);
-		console.log('MCP23017 test pin 8 activated');
-		await this._sleep(2000);
-		this._mcp.digitalWrite(8, this._mcp.LOW);
-		console.log('MCP23017 test pin 8 deactivated');
-
-		this._waterTankPump.writeSync(Gpio.LOW);
-		console.log('Water tank pump activated');
-		await this._sleep(2000);
-		this._waterTankPump.writeSync(Gpio.HIGH);
-		console.log('Water tank pump deactivated');
-		console.log('');
-
-		for (let pump of this._flowerpotPumps) {
-			pump.writeSync(Gpio.LOW);
-			console.log(`Pump activated: ${this._flowerpotPumps.indexOf(pump) + 1}`);
-			await this._sleep(2000);
-			pump.writeSync(Gpio.HIGH);
-			console.log(`Pump deactivated: ${this._flowerpotPumps.indexOf(pump) + 1}`);
-			console.log('');
-		}
-
-		console.log('Cooling fans activated');
-		this._activateCoolingFans();
-		await this._sleep(5000);
-		this._deactivateCoolingFans();
-		console.log('Cooling fans deactivated');
-		console.log('');
-
-		console.log('Moisture sensors activated');
-		this._moistureSensorsPower.writeSync(Gpio.LOW);
-		await this._sleep(10000);
-		this._moistureSensorsPower.writeSync(Gpio.HIGH);
-		console.log('Moisture sensors deactivated');
-		console.log('');
-
 		console.log('Small tank moisture sensors activated');
 		this._activateMoistureSensor(this._smallTankBottomSensorPower);
 		this._activateMoistureSensor(this._smallTankTopSensorPower);
@@ -126,6 +86,81 @@ export default class Irrigation {
 		this._deactivateMoistureSensor(this._smallTankBottomSensorPower);
 		this._deactivateMoistureSensor(this._smallTankTopSensorPower);
 		console.log('Small tank moisture sensors deactivated');
+		console.log('');
+
+		[8,9,10,11,12,13].forEach(pin => {
+			this._mcp.pinMode(pin, this._mcp.OUTPUT);
+			this._mcp.digitalWrite(pin, this._mcp.HIGH);
+		});
+
+		await this._sleep(1000);
+
+		this._mcp.digitalWrite(8, this._mcp.LOW);
+		console.log('MCP23017 test pin 8 activated');
+		await this._sleep(1000);
+		this._mcp.digitalWrite(8, this._mcp.HIGH);
+		console.log('MCP23017 test pin 8 deactivated');
+
+		this._mcp.digitalWrite(9, this._mcp.LOW);
+		console.log('MCP23017 test pin 9 activated');
+		await this._sleep(1000);
+		this._mcp.digitalWrite(9, this._mcp.HIGH);
+		console.log('MCP23017 test pin 9 deactivated');
+
+		this._mcp.digitalWrite(10, this._mcp.LOW);
+		console.log('MCP23017 test pin 10 activated');
+		await this._sleep(1000);
+		this._mcp.digitalWrite(10, this._mcp.HIGH);
+		console.log('MCP23017 test pin 10 deactivated');
+
+		this._mcp.digitalWrite(11, this._mcp.LOW);
+		console.log('MCP23017 test pin 11 activated');
+		await this._sleep(1000);
+		this._mcp.digitalWrite(11, this._mcp.HIGH);
+		console.log('MCP23017 test pin 11 deactivated');
+
+		this._mcp.digitalWrite(12, this._mcp.LOW);
+		console.log('MCP23017 test pin 12 activated');
+		await this._sleep(1000);
+		this._mcp.digitalWrite(12, this._mcp.HIGH);
+		console.log('MCP23017 test pin 12 deactivated');
+
+		this._mcp.digitalWrite(13, this._mcp.LOW);
+		console.log('MCP23017 test pin 13 activated');
+		await this._sleep(1000);
+		this._mcp.digitalWrite(13, this._mcp.HIGH);
+		console.log('MCP23017 test pin 13 deactivated');
+		this._sleep(1000);
+
+
+		this._waterTankPump.writeSync(Gpio.LOW);
+		console.log('Water tank pump activated');
+		await this._sleep(1000);
+		this._waterTankPump.writeSync(Gpio.HIGH);
+		console.log('Water tank pump deactivated');
+		console.log('');
+
+		for (let pump of this._flowerpotPumps) {
+			pump.writeSync(Gpio.LOW);
+			console.log(`Pump activated: ${this._flowerpotPumps.indexOf(pump) + 1}`);
+			await this._sleep(1000);
+			pump.writeSync(Gpio.HIGH);
+			console.log(`Pump deactivated: ${this._flowerpotPumps.indexOf(pump) + 1}`);
+			console.log('');
+		}
+
+		console.log('Cooling fans activated');
+		this._activateCoolingFans();
+		await this._sleep(10000);
+		this._deactivateCoolingFans();
+		console.log('Cooling fans deactivated');
+		console.log('');
+
+		console.log('Moisture sensors activated');
+		this._moistureSensorsPower.writeSync(Gpio.LOW);
+		await this._sleep(60000);
+		this._moistureSensorsPower.writeSync(Gpio.HIGH);
+		console.log('Moisture sensors deactivated');
 		console.log('');
 
 		return 0;
