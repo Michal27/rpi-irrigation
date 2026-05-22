@@ -4,10 +4,11 @@
 	"description": "",
 	"main": "irrigation.mjs",
 	"dependencies": {
-		"babel-eslint": "^8.2.3",
-		"eslint": "^4.19.1",
-		"node-dht-sensor": "^0.3.0",
-		"onoff": "^3.1.0"
+		"babel-eslint": "8.2.3",
+		"eslint": "4.19.1",
+		"node-dht-sensor": "0.3.0",
+		"node-mcp23017": "0.1.0",
+		"onoff": "3.1.0"
 	},
 	"scripts": {
 		"go": "node --experimental-modules src/irrigation.mjs",
