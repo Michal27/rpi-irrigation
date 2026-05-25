@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zavlažování</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Balkon — Zavlažování</h1>
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="label">Teplota</span>
+                <span class="value" id="temp-value">—</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Vlhkost</span>
+                <span class="value" id="humid-value">—</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Nádoba</span>
+                <span class="value" id="tank-value">—</span>
+            </div>
+            <div class="safety-alert" id="safety-alert" hidden>
+                ⚠ BEZPEČNOSTNÍ VYPNUTÍ
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section>
+            <h2>Balkon</h2>
+            <div class="balcony-grid" id="balcony-grid"></div>
+        </section>
+
+        <section>
+            <h2>Klima — posledních 24 h</h2>
+            <div class="chart-container">
+                <canvas id="climate-chart"></canvas>
+            </div>
+        </section>
+    </main>
+
+    <script src="/chart.min.js"></script>
+    <script src="/dashboard.js"></script>
+</body>
+</html>
