@@ -29,8 +29,8 @@ POT_LAYOUT.forEach(({ index, col, row, rowSpan = 1, label, portrait = false, cir
     if (portrait) el.classList.add('pot-portrait');
     if (circular) el.classList.add('pot-circular');
     el.dataset.index = index;
-    el.style.gridColumn = col;
-    el.style.gridRow = rowSpan > 1 ? `${row} / ${row + rowSpan}` : row;
+    el.style.setProperty('--grid-col', col);
+    el.style.setProperty('--grid-row', rowSpan > 1 ? `${row} / ${row + rowSpan}` : String(row));
     el.innerHTML = `
         <div class="pot-info">
             <span class="pot-label">${label}</span>

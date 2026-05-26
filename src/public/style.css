@@ -116,6 +116,8 @@ section h2 {
     border-radius: 0.5rem;
     padding: 0.5rem 1rem;
     transition: background 0.35s, border-color 0.35s;
+    grid-column: var(--grid-col);
+    grid-row: var(--grid-row);
 }
 
 .pot-info {
@@ -210,4 +212,39 @@ section h2 {
     border-radius: 0.5rem;
     padding: 1rem 1rem 0.5rem;
     max-height: 200px;
+}
+
+/* ── Mobile layout ── */
+
+@media (max-width: 640px) {
+    main {
+        padding: 0.75rem;
+        gap: 1.5rem;
+    }
+
+    .balcony-grid {
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: auto;
+        gap: 0.4rem;
+    }
+
+    .balcony-grid .pot {
+        grid-column: auto;
+        grid-row: auto;
+        aspect-ratio: 3 / 1;
+    }
+
+    .balcony-grid .pot-portrait {
+        flex-direction: row;
+        justify-content: space-between;
+    }
+
+    .balcony-grid .pot-portrait .pot-info {
+        align-items: flex-start;
+        text-align: left;
+    }
+
+    .chart-container {
+        max-height: 150px;
+    }
 }
