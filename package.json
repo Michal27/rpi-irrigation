@@ -12,7 +12,7 @@
 		"express": "4.19.0",
 		"node-dht-sensor": "0.5.1",
 		"node-mcp23017": "0.1.0",
-		"pigpio": "3.3.1"
+		"onoff": "6.0.3"
 	},
 	"scripts": {
 		"go": "node src/app.js",
