@@ -8,11 +8,11 @@
 		"node": ">=20"
 	},
 	"dependencies": {
-		"chart.js": "^4.4.0",
-		"express": "^4.19.0",
-		"node-dht-sensor": "^0.5.1",
-		"node-mcp23017": "^0.1.0",
-		"onoff": "^6.0.3"
+		"chart.js": "4.4.0",
+		"express": "4.19.0",
+		"node-dht-sensor": "0.5.1",
+		"node-mcp23017": "0.1.0",
+		"pigpio": "3.3.1"
 	},
 	"scripts": {
 		"go": "node src/app.js",

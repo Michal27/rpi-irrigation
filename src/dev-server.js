@@ -10,8 +10,9 @@ function generateHistory() {
         const t = new Date(now - i * 15 * 60 * 1000);
         history.push({
             time: t.toUTCString(),
-            temperature: (22 + Math.sin(i / 10) * 6 + Math.random()).toFixed(1),
-            humidity:    (55 + Math.cos(i / 8)  * 15 + Math.random()).toFixed(1),
+            temperature:    (22 + Math.sin(i / 10) * 6  + Math.random()).toFixed(1),
+            humidity:       (55 + Math.cos(i / 8)  * 15 + Math.random()).toFixed(1),
+            cpuTemperature: (52 + Math.sin(i / 12) * 8  + Math.random()).toFixed(1),
         });
     }
     return history;
@@ -36,6 +37,7 @@ const mockIrrigation = {
             safetyShutdown: false,
             temperature:    last.temperature,
             humidity:       last.humidity,
+            cpuTemperature: last.cpuTemperature,
             temperatureHistory: history,
         };
     },

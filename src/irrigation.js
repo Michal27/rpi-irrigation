@@ -1,9 +1,13 @@
 import Dht22Sensor from './dht22.js';
-import OnOff from 'onoff';
+import pigpio from 'pigpio';
 import MCP23017 from 'node-mcp23017';
 import * as fs from 'fs';
 
-const Gpio = OnOff.Gpio;
+const { Gpio } = pigpio;
+
+// Active-LOW relay logic: 0 activates relay, 1 deactivates relay
+const LOW  = 0;
+const HIGH = 1;
 
 const IRRIGATION_CYCLE_INTERVAL = 7200000; //miliseconds = 2 hours
 const TEMPERATURE_AND_HUMIDITY_CYCLE_INTERVAL = 900000; //miliseconds = 15 minutes
@@ -31,6 +35,10 @@ const safetyPin3 = 9;
 
 const mcpPumpPins = [8, 9, 10, 11, 12, 13];
 const mcpSensorPins = [0, 1, 2, 3, 4, 5];
+
+// Release GPIO resources on process exit
+process.on('SIGINT',  () => { pigpio.terminate(); process.exit(0); });
+process.on('SIGTERM', () => { pigpio.terminate(); process.exit(0); });
 
 export default class Irrigation {
 
@@ -68,6 +76,7 @@ export default class Irrigation {
 		this._activePumpIndex = null;
 		this._lastTemperature = null;
 		this._lastHumidity = null;
+		this._lastCpuTemperature = null;
 	}
 
 	run() {
@@ -93,10 +102,10 @@ export default class Irrigation {
 		console.log('');
 
 		for (let pump of this._gpioPumps) {
-			pump.writeSync(Gpio.LOW);
+			pump.digitalWrite(LOW);
 			console.log(`GPIO pump activated: ${this._gpioPumps.indexOf(pump) + 1}`);
 			await this._sleep(1000);
-			pump.writeSync(Gpio.HIGH);
+			pump.digitalWrite(HIGH);
 			console.log(`GPIO pump deactivated: ${this._gpioPumps.indexOf(pump) + 1}`);
 			console.log('');
 		}
@@ -109,11 +118,11 @@ export default class Irrigation {
 		console.log('');
 
 		console.log('Moisture sensors activated');
-		this._moistureSensorsPower.writeSync(Gpio.LOW);
-		this._moistureSensor7Power.writeSync(Gpio.LOW);
+		this._moistureSensorsPower.digitalWrite(LOW);
+		this._moistureSensor7Power.digitalWrite(LOW);
 		await this._sleep(60000);
-		this._moistureSensorsPower.writeSync(Gpio.HIGH);
-		this._moistureSensor7Power.writeSync(Gpio.HIGH);
+		this._moistureSensorsPower.digitalWrite(HIGH);
+		this._moistureSensor7Power.digitalWrite(HIGH);
 		console.log('Moisture sensors deactivated');
 		console.log('');
 
@@ -180,6 +189,7 @@ export default class Irrigation {
 
 		this._lastTemperature = temperature;
 		this._lastHumidity = humidity;
+		this._lastCpuTemperature = this._getCpuTemperature();
 
 		if (temperature > START_COOLING_TEMPERATURE_LIMIT) {
 			this._coolingFansActivated = true;
@@ -194,7 +204,7 @@ export default class Irrigation {
 		}
 
 		this._previousHumidity = humidity;
-		this._storeTemperatureHumidityToHistory(temperature, humidity);
+		this._storeTemperatureHumidityToHistory(temperature, humidity, this._lastCpuTemperature);
 	}
 
 	_safetyCheckCycle() {
@@ -292,11 +302,11 @@ export default class Irrigation {
 		}
 	}
 
-	_storeTemperatureHumidityToHistory(temperature, humidity) {
+	_storeTemperatureHumidityToHistory(temperature, humidity, cpuTemperature) {
 		const actualDate = this._getActualCZDate();
 		const historyKeys = Object.keys(this._temperatureHumidityHistory);
 
-		this._temperatureHumidityHistory[actualDate.toUTCString()] = { temperature, humidity };
+		this._temperatureHumidityHistory[actualDate.toUTCString()] = { temperature, humidity, cpuTemperature };
 
 		if (historyKeys.length > TEMPERATURE_HUMIDITY_HISTORY_LIMIT) {
 			delete this._temperatureHumidityHistory[historyKeys[0]];
@@ -326,42 +336,57 @@ export default class Irrigation {
 		return actualDate;
 	}
 
-	_inicializeGpioPin(pinNumber, direction, edge = 'none', options = {}) {
-		return new Gpio(pinNumber, direction, edge, options);
+	_inicializeGpioPin(pinNumber, direction) {
+		if (direction === 'in') {
+			return new Gpio(pinNumber, { mode: Gpio.INPUT });
+		} else {
+			// 'high' = output initialized HIGH (relay deactivated, active-LOW logic)
+			// 'out'  = output initialized LOW
+			const gpio = new Gpio(pinNumber, { mode: Gpio.OUTPUT });
+			gpio.digitalWrite(direction === 'high' ? HIGH : LOW);
+			return gpio;
+		}
 	}
 
-	_inicializeGpioPins(gpioPins, direction, edge = 'none', options = {}) {
-		return gpioPins.map((pin) => {
-			return this._inicializeGpioPin(pin, direction, edge, options);
-		})
+	_inicializeGpioPins(gpioPins, direction) {
+		return gpioPins.map(pin => this._inicializeGpioPin(pin, direction));
 	}
 
 	_activateCoolingFans() {
-		this._coolingFans.writeSync(Gpio.LOW);
+		this._coolingFans.digitalWrite(LOW);
 	}
 
 	_deactivateCoolingFans() {
-		this._coolingFans.writeSync(Gpio.HIGH);
+		this._coolingFans.digitalWrite(HIGH);
 	}
 
 	_getSensorData(sensor) {
-		return sensor.readSync();
+		return sensor.digitalRead();
 	}
 
 	_getTemperatureAndHumidity() {
 		return this._temperatureAndHumiditySensor.getData();
 	}
 
+	_getCpuTemperature() {
+		try {
+			const raw = fs.readFileSync('/sys/class/thermal/thermal_zone0/temp', 'utf8');
+			return parseFloat((parseInt(raw.trim()) / 1000).toFixed(1));
+		} catch {
+			return null;
+		}
+	}
+
 	async _getAllMoistureSensorsData() {
 		let result = [];
 
-		// Activated by Gpio.LOW because of EM Relay switching
-		this._moistureSensorsPower.writeSync(Gpio.LOW);
-		this._moistureSensor7Power.writeSync(Gpio.LOW);
+		// Activated by LOW because of EM Relay switching (active-LOW)
+		this._moistureSensorsPower.digitalWrite(LOW);
+		this._moistureSensor7Power.digitalWrite(LOW);
 		await this._sleep(100);
 
 		for (let moistureSensor of this._moistureSensors) {
-			result.push(moistureSensor.readSync());
+			result.push(moistureSensor.digitalRead());
 			await this._sleep(50);
 		}
 
@@ -370,27 +395,27 @@ export default class Irrigation {
 			await this._sleep(50);
 		}
 
-		// Deactivated by Gpio.HIGH because of EM Relay switching
-		this._moistureSensorsPower.writeSync(Gpio.HIGH);
-		this._moistureSensor7Power.writeSync(Gpio.HIGH);
+		// Deactivated by HIGH because of EM Relay switching (active-LOW)
+		this._moistureSensorsPower.digitalWrite(HIGH);
+		this._moistureSensor7Power.digitalWrite(HIGH);
 
 		this._lastSensorReadings = result;
 		return result;
 	}
 
 	_isTankEmpty() {
-		return this._waterTankLevelSensor.readSync() === Gpio.LOW;
+		return this._waterTankLevelSensor.digitalRead() === LOW;
 	}
 
 	_isMoistureSensorOutOfWater(gpioValue) {
-		return gpioValue === Gpio.HIGH;
+		return gpioValue === HIGH;
 	}
 
 	async _activateGpioPump(pump) {
 		this._activePumpIndex = this._gpioPumps.indexOf(pump);
-		pump.writeSync(Gpio.LOW);
+		pump.digitalWrite(LOW);
 		await this._sleep(PUMP_ACTIVATION_DURATION);
-		pump.writeSync(Gpio.HIGH);
+		pump.digitalWrite(HIGH);
 		this._activePumpIndex = null;
 		return 0;
 	}
@@ -413,6 +438,7 @@ export default class Irrigation {
 			safetyShutdown: this._safetyShutdown,
 			temperature: this._lastTemperature,
 			humidity: this._lastHumidity,
+			cpuTemperature: this._lastCpuTemperature,
 			temperatureHistory: this._getRecentTemperatureHistory(),
 		};
 	}

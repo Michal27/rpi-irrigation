@@ -68,6 +68,16 @@ const chart = new Chart(document.getElementById('climate-chart'), {
                 pointRadius: 0,
                 borderWidth: 2,
             },
+            {
+                label: 'CPU (°C)',
+                data: [],
+                borderColor: '#f97316',
+                backgroundColor: 'rgba(249,115,22,0.08)',
+                yAxisID: 'yTemp',
+                tension: 0.3,
+                pointRadius: 0,
+                borderWidth: 2,
+            },
         ],
     },
     options: {
@@ -119,6 +129,9 @@ function applyStatus(status) {
     const humidEl = document.getElementById('humid-value');
     humidEl.textContent = status.humidity !== null ? `${status.humidity} %` : '—';
 
+    const cpuEl = document.getElementById('cpu-value');
+    cpuEl.textContent = status.cpuTemperature !== null ? `${status.cpuTemperature} °C` : '—';
+
     const tankEl = document.getElementById('tank-value');
     if (status.tankEmpty === null) {
         tankEl.textContent = '—';
@@ -165,6 +178,7 @@ function applyStatus(status) {
         chart.data.labels = history.map(d => formatTime(d.time));
         chart.data.datasets[0].data = history.map(d => d.temperature);
         chart.data.datasets[1].data = history.map(d => d.humidity);
+        chart.data.datasets[2].data = history.map(d => d.cpuTemperature);
         chart.update('none');
     }
 }
