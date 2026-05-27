@@ -446,7 +446,10 @@ export default class Irrigation {
 		let result = new Array(gpioPumpsPins.length + mcpPumpPins.length).fill(0);
 
 		dataHistoryKeys.filter((key) => {
-			return new Date(key).toDateString() === actualDate.toDateString();
+			const keyDate = new Date(key);
+			return keyDate.getUTCFullYear() === actualDate.getUTCFullYear() &&
+			       keyDate.getUTCMonth()    === actualDate.getUTCMonth() &&
+			       keyDate.getUTCDate()     === actualDate.getUTCDate();
 		}).map((currentDayKey) => {
 			this._moistureSensorsDataHistory[currentDayKey].forEach((sensorData, index) => {
 				result[index] += sensorData;
@@ -458,8 +461,9 @@ export default class Irrigation {
 
 	_getActualCZDate() {
 		const actualDate = new Date();
-		actualDate.setHours(actualDate.getHours() + 2); //CZ summer time
-
+		// setUTCHours is timezone-independent — avoids double-offset when the
+		// system clock is already set to CZ local time (UTC+2).
+		actualDate.setUTCHours(actualDate.getUTCHours() + 2);
 		return actualDate;
 	}
 
@@ -610,9 +614,7 @@ export default class Irrigation {
 
 	_isIrrigationDayTime() {
 		const actualDate = this._getActualCZDate();
-		const actualDayHours = actualDate.getHours();
-
-		return actualDayHours >= 8 && actualDayHours <= 23;
+		return actualDate.getUTCHours() >= 8 && actualDate.getUTCHours() <= 23;
 	}
 
 	_sleep(ms) {
