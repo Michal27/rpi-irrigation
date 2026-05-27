@@ -222,6 +222,7 @@ section h2 {
     height: 1.875rem;
     border-radius: 9999px;
     background: var(--plant-color, transparent);
+    border: 2px solid var(--plant-border, transparent);
     font-size: 1rem;
     line-height: 1;
 }

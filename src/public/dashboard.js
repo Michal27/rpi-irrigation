@@ -2,14 +2,14 @@
 // emoji: displayed icon; name: label shown below icon;
 // color: optional CSS rgba background tint on the icon circle (used to visually distinguish tomato variants).
 const PLANT_CATALOG = {
-    'tomato-red':    { emoji: '🍅', name: 'Rajče červené',  color: 'rgba(220, 38,  38,  0.22)' },
-    'tomato-yellow': { emoji: '🍅', name: 'Rajče žluté',    color: 'rgba(234, 179, 8,   0.25)' },
-    'tomato-orange': { emoji: '🍅', name: 'Rajče oranžové', color: 'rgba(249, 115, 22,  0.22)' },
-    'chives':        { emoji: '🌿', name: 'Pažitka'                                             },
-    'mint':          { emoji: '🌱', name: 'Máta'                                                },
-    'lettuce':       { emoji: '🥬', name: 'Salát'                                               },
-    'strawberry':    { emoji: '🍓', name: 'Jahoda'                                              },
-    'daffodil':      { emoji: '🌼', name: 'Narcisky'                                            },
+    'tomato-red':    { emoji: '🍅', name: 'Rajče červené',  color: 'rgba(220, 38,  38,  0.22)', border: '#dc2626' },
+    'tomato-yellow': { emoji: '🍅', name: 'Rajče žluté',    color: 'rgba(234, 179, 8,   0.25)', border: '#eab308' },
+    'tomato-orange': { emoji: '🍅', name: 'Rajče oranžové', color: 'rgba(249, 115, 22,  0.22)', border: '#f97316' },
+    'chives':        { emoji: '🌿', name: 'Pažitka'                                                               },
+    'mint':          { emoji: '🌱', name: 'Máta'                                                                  },
+    'lettuce':       { emoji: '🥬', name: 'Salát'                                                                 },
+    'strawberry':    { emoji: '🍓', name: 'Jahoda'                                                                },
+    'daffodil':      { emoji: '🌼', name: 'Narcisky'                                                              },
 };
 
 // Mapping: pump index → display position in the balcony grid
@@ -49,7 +49,7 @@ POT_LAYOUT.forEach(({ index, col, row, rowSpan = 1, label, portrait = false, cir
 
     const plantEntry = plant ? PLANT_CATALOG[plant] : null;
     const plantHtml = plantEntry ? `
-        <div class="pot-plant" style="--plant-color: ${plantEntry.color ?? 'transparent'}">
+        <div class="pot-plant" style="--plant-color: ${plantEntry.color ?? 'transparent'}; --plant-border: ${plantEntry.border ?? 'transparent'}">
             <span class="pot-plant-icon">${plantEntry.emoji}</span>
             <span class="pot-plant-name">${plantEntry.name}</span>
         </div>` : '';
