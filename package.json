@@ -17,7 +17,7 @@
 	"scripts": {
 		"go": "node src/app.js",
 		"dev": "node src/dev-server.js",
-		"test": "echo \"Error: no test specified\" && exit 1"
+		"test": "node src/diagnostics.js"
 	},
 	"author": "Michal Malanik",
 	"license": "ISC"

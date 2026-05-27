@@ -88,6 +88,8 @@ export default class Irrigation {
 		this._lastTemperature = null;
 		this._lastHumidity = null;
 		this._lastCpuTemperature = null;
+
+		this._loadHistoryFromFiles();
 	}
 
 	run() {
@@ -99,45 +101,139 @@ export default class Irrigation {
 		setInterval(this._writeHistoryCycle.bind(this), WRITE_HISTORY_INTERVAL);
 	}
 
-	async test() {
-		console.log('!!!RUNNING SYSTEM TEST!!!');
-		console.log('');
+	async diagnostics() {
+		const LINE = '═'.repeat(54);
+		let passed = 0, warned = 0, failed = 0;
 
-		for (let pin of mcpPumpPins) {
-			this._mcp.digitalWrite(pin, this._mcp.LOW);
-			console.log(`MCP23017 pump pin ${pin} activated`);
-			await this._sleep(1000);
-			this._mcp.digitalWrite(pin, this._mcp.HIGH);
-			console.log(`MCP23017 pump pin ${pin} deactivated`);
+		const ok   = msg => { passed++; return `✓ ${msg}`; };
+		const warn = msg => { warned++; return `⚠ ${msg}`; };
+		const fail = msg => { failed++; return `✗ ${msg}`; };
+
+		const row = (label, value, status) => {
+			const l = String(label).padEnd(32);
+			const v = String(value ?? '—').padEnd(14);
+			console.log(`  ${l}${v}${status ?? ''}`);
+		};
+
+		const section = name => console.log(`\n▸ ${name}`);
+
+		console.log('\n' + LINE);
+		console.log('  IRRIGATION SYSTEM — DIAGNOSTICS');
+		console.log(LINE);
+
+		// ── System info ───────────────────────────────────────────
+		section('SYSTEM INFO');
+		row('GPIO offset', GPIO_OFFSET);
+		row('Node.js', process.version);
+
+		// ── DHT22 ─────────────────────────────────────────────────
+		section(`CLIMATE SENSOR  (DHT22, GPIO ${temperatureAndHumiditySensorPin})`);
+		const { temperature, humidity } = this._getTemperatureAndHumidity();
+		if (temperature === 0 && humidity === 0) {
+			row('Sensor', 'no data', fail('no reading — check GPIO 18 wiring'));
+		} else {
+			row('Temperature', `${temperature} °C`, ok('OK'));
+			row('Humidity',    `${humidity} %`,     ok('OK'));
 		}
-		console.log('');
 
-		for (let pump of this._gpioPumps) {
-			pump.writeSync(Gpio.LOW);
-			console.log(`GPIO pump activated: ${this._gpioPumps.indexOf(pump) + 1}`);
-			await this._sleep(1000);
-			pump.writeSync(Gpio.HIGH);
-			console.log(`GPIO pump deactivated: ${this._gpioPumps.indexOf(pump) + 1}`);
-			console.log('');
+		// ── CPU ───────────────────────────────────────────────────
+		section('CPU');
+		const cpuTemp = this._getCpuTemperature();
+		row('Temperature',
+			cpuTemp !== null ? `${cpuTemp} °C` : null,
+			cpuTemp !== null ? ok('OK') : fail('read error'));
+
+		// ── Water tank ────────────────────────────────────────────
+		section(`WATER TANK  (GPIO ${waterTankLevelSensorPin})`);
+		const tankVal = this._waterTankLevelSensor.readSync();
+		row('Level sensor',
+			tankVal === Gpio.HIGH ? 'HIGH' : 'LOW',
+			tankVal === Gpio.HIGH ? ok('has water') : warn('empty or sensor disconnected'));
+
+		// ── Safety sensors ────────────────────────────────────────
+		section('SAFETY SENSORS');
+		this._safetySensor3Power.writeSync(Gpio.LOW);
+		await this._sleep(100);
+		const safetySensors = [this._safetySensor1, this._safetySensor2, this._safetySensor3];
+		const safetyPins    = [safetyPin1, safetyPin2, safetyPin3];
+		for (let i = 0; i < safetySensors.length; i++) {
+			const val = this._getSensorData(safetySensors[i]);
+			row(`Sensor ${i + 1}  (GPIO ${String(safetyPins[i]).padStart(2)})`,
+				val === Gpio.HIGH ? 'HIGH' : 'LOW',
+				val === Gpio.HIGH ? ok('safe / dry') : warn('WET — check floor!'));
+		}
+		this._safetySensor3Power.writeSync(Gpio.HIGH);
+
+		// ── Moisture sensors ──────────────────────────────────────
+		section(`MOISTURE SENSORS  (power: GPIO ${moistureSensorsPowerPin} + ${moistureSensor7PowerPin})`);
+		const allSensorData = await this._getAllMoistureSensorsData();
+
+		for (let i = 0; i < moistureSensorsDataPins.length; i++) {
+			const val = allSensorData[i];
+			row(`GPIO ${i + 1}  (data pin ${String(moistureSensorsDataPins[i]).padStart(2)})`,
+				val === Gpio.HIGH ? 'HIGH' : 'LOW',
+				val === Gpio.HIGH ? ok('dry') : warn('wet or wiring issue'));
+		}
+		for (let i = 0; i < mcpSensorPins.length; i++) {
+			const val = allSensorData[moistureSensorsDataPins.length + i];
+			row(`MCP  ${i + 1}  (pin  ${mcpSensorPins[i]})`,
+				val === 1 ? 'HIGH' : 'LOW',
+				val === 1 ? ok('dry') : warn('wet or wiring issue'));
 		}
 
-		console.log('Cooling fans activated');
-		this._activateCoolingFans();
-		await this._sleep(10000);
-		this._deactivateCoolingFans();
-		console.log('Cooling fans deactivated');
-		console.log('');
+		// ── GPIO pumps ────────────────────────────────────────────
+		section('PUMPS  GPIO  (1 s each)');
+		for (let i = 0; i < this._gpioPumps.length; i++) {
+			const pump = this._gpioPumps[i];
+			const pin  = gpioPumpsPins[i];
+			try {
+				pump.writeSync(Gpio.LOW);
+				await this._sleep(1000);
+				pump.writeSync(Gpio.HIGH);
+				row(`Pump ${String(i + 1).padStart(2)}  (GPIO ${String(pin).padStart(2)})`, '', ok('OK'));
+			} catch (err) {
+				row(`Pump ${String(i + 1).padStart(2)}  (GPIO ${String(pin).padStart(2)})`, '', fail(err.message));
+			}
+		}
 
-		console.log('Moisture sensors activated');
-		this._moistureSensorsPower.writeSync(Gpio.LOW);
-		this._moistureSensor7Power.writeSync(Gpio.LOW);
-		await this._sleep(60000);
-		this._moistureSensorsPower.writeSync(Gpio.HIGH);
-		this._moistureSensor7Power.writeSync(Gpio.HIGH);
-		console.log('Moisture sensors deactivated');
-		console.log('');
+		// ── MCP pumps ─────────────────────────────────────────────
+		section('PUMPS  MCP23017  (1 s each)');
+		for (let i = 0; i < mcpPumpPins.length; i++) {
+			const pin     = mcpPumpPins[i];
+			const pumpNum = this._gpioPumps.length + i + 1;
+			try {
+				this._mcp.digitalWrite(pin, this._mcp.LOW);
+				await this._sleep(1000);
+				this._mcp.digitalWrite(pin, this._mcp.HIGH);
+				row(`Pump ${String(pumpNum).padStart(2)}  (MCP pin ${String(pin).padStart(2)})`, '', ok('OK'));
+			} catch (err) {
+				row(`Pump ${String(pumpNum).padStart(2)}  (MCP pin ${String(pin).padStart(2)})`, '', fail(err.message));
+			}
+		}
 
-		return 0;
+		// ── Cooling fans ──────────────────────────────────────────
+		section(`COOLING FANS  (GPIO ${fansPin}, 3 s)`);
+		try {
+			this._activateCoolingFans();
+			await this._sleep(3000);
+			this._deactivateCoolingFans();
+			row('Fans', '', ok('OK'));
+		} catch (err) {
+			row('Fans', '', fail(err.message));
+		}
+
+		// ── Summary ───────────────────────────────────────────────
+		console.log('\n' + LINE);
+		if (failed === 0 && warned === 0) {
+			console.log(`  ✓ All ${passed} checks passed`);
+		} else {
+			const parts = [];
+			if (passed) parts.push(`${passed} OK`);
+			if (warned) parts.push(`${warned} warning${warned > 1 ? 's' : ''}`);
+			if (failed) parts.push(`${failed} error${failed > 1 ? 's' : ''}`);
+			console.log(`  RESULT: ${parts.join('  |  ')}`);
+		}
+		console.log(LINE + '\n');
 	}
 
 	async _irrigationCycle() {
@@ -236,6 +332,26 @@ export default class Irrigation {
 					this._safetyShutdown = false;
 					this._safetyShutdownInterval = null;
 				}, SAFETY_REENABLE_INTERVAL);
+			}
+		}
+	}
+
+	_loadHistoryFromFiles() {
+		const files = [
+			{ path: 'irrigationHistory.txt',          target: '_moistureSensorsDataHistory'   },
+			{ path: 'safetyShutdownsHistory.txt',     target: '_safetyShutdownsHistory'       },
+			{ path: 'temperatureHumidityHistory.txt', target: '_temperatureHumidityHistory'   },
+		];
+
+		for (const { path, target } of files) {
+			try {
+				const raw = fs.readFileSync(path, 'utf8');
+				this[target] = JSON.parse(raw);
+			} catch (err) {
+				if (err.code !== 'ENOENT') {
+					console.warn(`Failed to load history from ${path}:`, err.message);
+				}
+				// ENOENT = first run, no file yet — silently keep empty object
 			}
 		}
 	}
@@ -396,7 +512,7 @@ export default class Irrigation {
 		}
 
 		for (let pin of mcpSensorPins) {
-			result.push(this._mcp.digitalRead(pin));
+			result.push(await this._readMcpPin(pin));
 			await this._sleep(50);
 		}
 
@@ -406,6 +522,21 @@ export default class Irrigation {
 
 		this._lastSensorReadings = result;
 		return result;
+	}
+
+	// node-mcp23017's digitalRead is async/callback-based (uses readI2cBlock internally).
+	// This helper wraps it as a Promise returning 1 (HIGH) or 0 (LOW), matching onoff's Gpio.HIGH/LOW convention.
+	_readMcpPin(pin) {
+		return new Promise((resolve) => {
+			this._mcp.digitalRead(pin, (_pin, err, value) => {
+				if (err) {
+					console.error(`[MCP digitalRead] pin ${pin} error:`, err);
+					resolve(null);
+				} else {
+					resolve(value ? 1 : 0);
+				}
+			});
+		});
 	}
 
 	_isTankEmpty() {
@@ -460,6 +591,9 @@ export default class Irrigation {
 			} else {
 				await this._activateMcpPump(mcpPumpPins[pumpIndex - this._gpioPumps.length]);
 			}
+			const manualData = new Array(gpioPumpsPins.length + mcpPumpPins.length).fill(0);
+			manualData[pumpIndex] = 1;
+			this._storeDataToHistory(manualData);
 			return true;
 		} finally {
 			this._irrigationRunning = false;

@@ -205,6 +205,35 @@ section h2 {
     cursor: not-allowed;
 }
 
+/* ── Plant indicator ── */
+
+.pot-plant {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.pot-plant-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.875rem;
+    height: 1.875rem;
+    border-radius: 9999px;
+    background: var(--plant-color, transparent);
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.pot-plant-name {
+    font-size: 0.55rem;
+    color: #6b7280;
+    text-align: center;
+    line-height: 1.25;
+    max-width: 3.5rem;
+}
+
 /* ── Chart ── */
 
 .chart-container {
@@ -212,6 +241,7 @@ section h2 {
     border-radius: 0.5rem;
     padding: 1rem 1rem 0.5rem;
     max-height: 200px;
+    max-width: 400px;
 }
 
 /* ── Mobile layout ── */

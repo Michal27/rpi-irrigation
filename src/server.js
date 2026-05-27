@@ -10,7 +10,7 @@ export function createServer(irrigation) {
 	app.use(express.static(join(__dirname, 'public')));
 
 	app.get('/chart.min.js', (req, res) => {
-		res.sendFile(join(__dirname, '../node_modules/chart.js/dist/chart.umd.min.js'));
+		res.sendFile(join(__dirname, '../node_modules/chart.js/dist/chart.umd.js'));
 	});
 
 	app.get('/api/status', (req, res) => {

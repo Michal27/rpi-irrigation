@@ -1,29 +1,44 @@
+// Plant catalog — maps plant ID to display properties.
+// emoji: displayed icon; name: label shown below icon;
+// color: optional CSS rgba background tint on the icon circle (used to visually distinguish tomato variants).
+const PLANT_CATALOG = {
+    'tomato-red':    { emoji: '🍅', name: 'Rajče červené',  color: 'rgba(220, 38,  38,  0.22)' },
+    'tomato-yellow': { emoji: '🍅', name: 'Rajče žluté',    color: 'rgba(234, 179, 8,   0.25)' },
+    'tomato-orange': { emoji: '🍅', name: 'Rajče oranžové', color: 'rgba(249, 115, 22,  0.22)' },
+    'chives':        { emoji: '🌿', name: 'Pažitka'                                             },
+    'mint':          { emoji: '🌱', name: 'Máta'                                                },
+    'lettuce':       { emoji: '🥬', name: 'Salát'                                               },
+    'strawberry':    { emoji: '🍓', name: 'Jahoda'                                              },
+    'daffodil':      { emoji: '🌼', name: 'Narcisky'                                            },
+};
+
 // Mapping: pump index → display position in the balcony grid
 // col/row use CSS grid coordinates (1-based)
 // Optional flags:
 //   portrait: true  — longer side vertical (spans all 4 rows)
 //   circular: true  — pot has round/oval shape
+//   plant: string   — plant ID from PLANT_CATALOG; omit to show no icon
 const POT_LAYOUT = [
-    { index: 12, col: 1, row: 1, rowSpan: 3, label: '13', portrait: true },  // short side — LEFT, portrait
-    { index: 0,  col: 2, row: 1, label: '1'  },  // single row
-    { index: 1,  col: 3, row: 1, label: '2'  },
-    { index: 2,  col: 4, row: 1, label: '3'  },
-    { index: 3,  col: 5, row: 1, label: '4'  },
-    { index: 4,  col: 2, row: 3, label: '5'  },  // double row — top shelf
-    { index: 5,  col: 3, row: 3, label: '6'  },
-    { index: 6,  col: 4, row: 3, label: '7'  },
-    { index: 7,  col: 5, row: 3, label: '8'  },
-    { index: 8,  col: 2, row: 4, label: '9'  },  // double row — bottom shelf
-    { index: 9,  col: 3, row: 4, label: '10' },
-    { index: 10, col: 4, row: 4, label: '11' },
-    { index: 11, col: 5, row: 4, label: '12' },
+    { index: 12, col: 1, row: 1, rowSpan: 3, label: '13', portrait: true, plant: 'tomato-red'    },  // short side — LEFT, portrait
+    { index: 0,  col: 2, row: 1, label: '1',  plant: 'tomato-red'    },  // single row
+    { index: 1,  col: 3, row: 1, label: '2',  plant: 'tomato-orange' },
+    { index: 2,  col: 4, row: 1, label: '3',  plant: 'tomato-orange' },
+    { index: 3,  col: 5, row: 1, label: '4',  plant: 'daffodil', circular: true },
+    { index: 4,  col: 2, row: 3, label: '5',  plant: 'chives'        },  // double row — top shelf
+    { index: 5,  col: 3, row: 3, label: '6',  plant: 'lettuce'       },
+    { index: 6,  col: 4, row: 3, label: '7',  plant: 'strawberry'    },
+    { index: 7,  col: 5, row: 3, label: '8',  plant: 'mint', circular: true },
+    { index: 8,  col: 2, row: 4, label: '9',  plant: 'tomato-yellow' },  // double row — bottom shelf
+    { index: 9,  col: 3, row: 4, label: '10', plant: 'tomato-orange' },
+    { index: 10, col: 4, row: 4, label: '11', plant: 'strawberry'    },
+    { index: 11, col: 5, row: 4, label: '12', plant: 'lettuce'       },
 ];
 
 // ── Build balcony grid ─────────────────────────────────────────────────────
 
 const grid = document.getElementById('balcony-grid');
 
-POT_LAYOUT.forEach(({ index, col, row, rowSpan = 1, label, portrait = false, circular = false }) => {
+POT_LAYOUT.forEach(({ index, col, row, rowSpan = 1, label, portrait = false, circular = false, plant }) => {
     const el = document.createElement('div');
     el.className = 'pot state-unknown';
     if (portrait) el.classList.add('pot-portrait');
@@ -31,11 +46,20 @@ POT_LAYOUT.forEach(({ index, col, row, rowSpan = 1, label, portrait = false, cir
     el.dataset.index = index;
     el.style.setProperty('--grid-col', col);
     el.style.setProperty('--grid-row', rowSpan > 1 ? `${row} / ${row + rowSpan}` : String(row));
+
+    const plantEntry = plant ? PLANT_CATALOG[plant] : null;
+    const plantHtml = plantEntry ? `
+        <div class="pot-plant" style="--plant-color: ${plantEntry.color ?? 'transparent'}">
+            <span class="pot-plant-icon">${plantEntry.emoji}</span>
+            <span class="pot-plant-name">${plantEntry.name}</span>
+        </div>` : '';
+
     el.innerHTML = `
         <div class="pot-info">
             <span class="pot-label">${label}</span>
             <span class="pot-count">—</span>
         </div>
+        ${plantHtml}
         <button class="irrigate-btn" data-index="${index}" title="Ruční zavlažení">💧</button>
     `;
     grid.appendChild(el);
@@ -112,8 +136,12 @@ const chart = new Chart(document.getElementById('climate-chart'), {
 });
 
 function formatTime(utcString) {
+    // The stored timestamp is real CZ time serialised as if it were UTC
+    // (server adds +2 h before calling toUTCString). Rendering with
+    // timeZone:'UTC' prevents the browser from adding another +2 h offset.
     return new Date(utcString).toLocaleTimeString('cs-CZ', {
         hour: '2-digit', minute: '2-digit',
+        timeZone: 'UTC',
     });
 }
 
