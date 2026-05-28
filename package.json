@@ -17,7 +17,8 @@
 	"scripts": {
 		"go": "node src/app.js",
 		"dev": "node src/dev-server.js",
-		"test": "node src/diagnostics.js"
+		"test": "node src/diagnostics.js",
+		"sensor": "node src/sensor.js"
 	},
 	"author": "Michal Malanik",
 	"license": "ISC"

@@ -22,7 +22,7 @@ function detectGpioOffset() {
     return 0; // fallback for older kernels where base was 0
 }
 
-const GPIO_OFFSET = detectGpioOffset();
+export const GPIO_OFFSET = detectGpioOffset();
 
 const IRRIGATION_CYCLE_INTERVAL = 7200000; //miliseconds = 2 hours
 const TEMPERATURE_AND_HUMIDITY_CYCLE_INTERVAL = 900000; //miliseconds = 15 minutes
@@ -36,30 +36,29 @@ const TEMPERATURE_HUMIDITY_HISTORY_LIMIT = 672; //7 days × 96 readings/day (15 
 const DAY_IRRIGATION_LIMIT = 3;
 const PUMP_ACTIVATION_DURATION = 30000; //miliseconds = 30 seconds
 
-const moistureSensorsPowerPin = 25;
-const moistureSensor7PowerPin = 27;
-const moistureSensorsDataPins = [8, 7, 12, 16, 20, 21, 22];
-const gpioPumpsPins = [11, 5, 6, 13, 19, 26, 24];
-const waterTankLevelSensorPin = 23;
-const safetyPin3PowerPin = 10;
-const temperatureAndHumiditySensorPin = 18;
-const fansPin = 14;
-const safetyPin1 = 17;
-const safetyPin2 = 4;
-const safetyPin3 = 9;
+// Free GPIO pins (BCM): 10, 15, 27
+// Free MCP23017 pins:   6, 7, 14, 15
 
-const mcpPumpPins = [8, 9, 10, 11, 12, 13];
-const mcpSensorPins = [0, 1, 2, 3, 4, 5];
+export const moistureSensorsPowerPin = 25;
+export const moistureSensorsDataPins = [8, 7, 12, 16, 20, 21, 22];
+export const gpioPumpsPins = [11, 5, 6, 13, 19, 26, 24];
+export const waterTankLevelSensorPin = 23;
+export const temperatureAndHumiditySensorPin = 18;
+export const fansPin = 14;
+export const safetyPin1 = 17;
+export const safetyPin2 = 4;
+export const safetyPin3 = 9;
+
+export const mcpPumpPins = [8, 9, 10, 11, 12, 13];
+export const mcpSensorPins = [0, 1, 2, 3, 4, 5];
 
 export default class Irrigation {
 
 	constructor() {
 		this._gpioPumps = this._inicializeGpioPins(gpioPumpsPins, 'high');
 		this._moistureSensorsPower = this._inicializeGpioPin(moistureSensorsPowerPin, 'high');
-		this._moistureSensor7Power = this._inicializeGpioPin(moistureSensor7PowerPin, 'high');
 		this._moistureSensors = this._inicializeGpioPins(moistureSensorsDataPins, 'in');
 		this._waterTankLevelSensor = this._inicializeGpioPin(waterTankLevelSensorPin, 'in');
-		this._safetySensor3Power = this._inicializeGpioPin(safetyPin3PowerPin, 'high');
 		this._coolingFans = this._inicializeGpioPin(fansPin, 'high');
 		this._safetySensor1 = this._inicializeGpioPin(safetyPin1, 'in');
 		this._safetySensor2 = this._inicializeGpioPin(safetyPin2, 'in');
@@ -92,7 +91,8 @@ export default class Irrigation {
 		this._loadHistoryFromFiles();
 	}
 
-	run() {
+	async run() {
+		await this._safetyCheckCycle();
 		this._irrigationCycle();
 		this._temperatureAndHumidityCycle();
 		setInterval(this._irrigationCycle.bind(this), IRRIGATION_CYCLE_INTERVAL);
@@ -152,8 +152,6 @@ export default class Irrigation {
 
 		// ── Safety sensors ────────────────────────────────────────
 		section('SAFETY SENSORS');
-		this._safetySensor3Power.writeSync(Gpio.LOW);
-		await this._sleep(100);
 		const safetySensors = [this._safetySensor1, this._safetySensor2, this._safetySensor3];
 		const safetyPins    = [safetyPin1, safetyPin2, safetyPin3];
 		for (let i = 0; i < safetySensors.length; i++) {
@@ -162,7 +160,6 @@ export default class Irrigation {
 				val === Gpio.HIGH ? 'HIGH' : 'LOW',
 				val === Gpio.HIGH ? ok('safe / dry') : warn('WET — check floor!'));
 		}
-		this._safetySensor3Power.writeSync(Gpio.HIGH);
 
 		// ── Moisture sensors ──────────────────────────────────────
 		section(`MOISTURE SENSORS  (power: GPIO ${moistureSensorsPowerPin} + ${moistureSensor7PowerPin})`);
@@ -507,7 +504,6 @@ export default class Irrigation {
 
 		// Activated by Gpio.LOW because of EM Relay switching (active-LOW)
 		this._moistureSensorsPower.writeSync(Gpio.LOW);
-		this._moistureSensor7Power.writeSync(Gpio.LOW);
 		await this._sleep(100);
 
 		for (let moistureSensor of this._moistureSensors) {
@@ -522,7 +518,6 @@ export default class Irrigation {
 
 		// Deactivated by Gpio.HIGH because of EM Relay switching (active-LOW)
 		this._moistureSensorsPower.writeSync(Gpio.HIGH);
-		this._moistureSensor7Power.writeSync(Gpio.HIGH);
 
 		this._lastSensorReadings = result;
 		return result;
