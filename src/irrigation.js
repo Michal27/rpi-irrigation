@@ -162,7 +162,7 @@ export default class Irrigation {
 		}
 
 		// ── Moisture sensors ──────────────────────────────────────
-		section(`MOISTURE SENSORS  (power: GPIO ${moistureSensorsPowerPin} + ${moistureSensor7PowerPin})`);
+		section(`MOISTURE SENSORS  (power: GPIO ${moistureSensorsPowerPin})`);
 		const allSensorData = await this._getAllMoistureSensorsData();
 
 		for (let i = 0; i < moistureSensorsDataPins.length; i++) {
