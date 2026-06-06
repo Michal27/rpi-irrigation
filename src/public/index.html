@@ -26,9 +26,23 @@
                 <span class="label">CPU</span>
                 <span class="value" id="cpu-value">—</span>
             </div>
+            <div class="status-item">
+                <span class="label">Poslední cyklus</span>
+                <span class="value" id="last-cycle-value">—</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Další cyklus</span>
+                <span class="value" id="next-cycle-value">—</span>
+            </div>
+            <div class="cycle-active" id="cycle-active" hidden>
+                ↻ PROBÍHÁ ZAVLAŽOVÁNÍ
+            </div>
             <div class="safety-alert" id="safety-alert" hidden>
                 ⚠ BEZPEČNOSTNÍ VYPNUTÍ
             </div>
+            <button class="safety-toggle-btn safety-toggle-stop" id="safety-toggle-btn">
+                ⏹ Zastavit zavlažování
+            </button>
         </div>
     </header>
 
@@ -36,6 +50,13 @@
         <section>
             <h2>Balkon</h2>
             <div class="balcony-grid" id="balcony-grid"></div>
+        </section>
+
+        <section id="safety-log-section">
+            <h2>Safety log</h2>
+            <div id="safety-log"></div>
+            <button class="test-discord-btn" id="test-discord-btn">Testovat Discord notifikaci</button>
+            <span id="test-discord-result"></span>
         </section>
 
         <section>

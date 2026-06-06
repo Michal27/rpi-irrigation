@@ -23,8 +23,17 @@ const sensorReadings = [1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0];
 const dailyCounts    = [2, 1, 3, 0, 1, 2, 0, 1, 3, 0, 2, 1, 0];
 const history        = generateHistory();
 
-let activePumpIndex = null;
+let activePumpIndex  = null;
 let activePumpTimeout = null;
+let safetyShutdown   = false;
+let safetyEventLog   = [
+    { type: 'sensor',      sensor: 2, pin: 4,  startTime: new Date(Date.now() - 3600000 * 5).toUTCString(), endTime: new Date(Date.now() - 3600000 * 4).toUTCString() },
+    { type: 'manual_stop', time: new Date(Date.now() - 3600000 * 2).toUTCString() },
+    { type: 'manual_resume', time: new Date(Date.now() - 3600000).toUTCString() },
+];
+
+const cycleEndTime   = new Date(Date.now() - 25 * 60000);
+const cycleStartTime = new Date(Date.now() - 26 * 60000);
 
 const mockIrrigation = {
     getStatus() {
@@ -33,12 +42,16 @@ const mockIrrigation = {
             sensorReadings,
             activePumpIndex,
             dailyCounts,
-            tankEmpty:      false,
-            safetyShutdown: false,
-            temperature:    last.temperature,
-            humidity:       last.humidity,
-            cpuTemperature: last.cpuTemperature,
+            tankEmpty:          false,
+            safetyShutdown,
+            temperature:        last.temperature,
+            humidity:           last.humidity,
+            cpuTemperature:     last.cpuTemperature,
             temperatureHistory: history,
+            irrigationRunning:  false,
+            lastIrrigationTime: cycleEndTime.toUTCString(),
+            nextIrrigationTime: new Date(cycleStartTime.getTime() + 7200000).toUTCString(),
+            safetyLog:          safetyEventLog.slice(-20),
         };
     },
 
@@ -48,6 +61,20 @@ const mockIrrigation = {
         clearTimeout(activePumpTimeout);
         activePumpTimeout = setTimeout(() => { activePumpIndex = null; }, 5000);
         return true;
+    },
+
+    async sendTestNotification() {
+        return false; // Discord not available in dev mode
+    },
+
+    manualShutdown() {
+        safetyShutdown = true;
+        safetyEventLog.push({ type: 'manual_stop', time: new Date().toUTCString() });
+    },
+
+    resumeIrrigation() {
+        safetyShutdown = false;
+        safetyEventLog.push({ type: 'manual_resume', time: new Date().toUTCString() });
     },
 };
 

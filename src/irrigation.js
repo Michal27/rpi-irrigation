@@ -27,11 +27,10 @@ export const GPIO_OFFSET = detectGpioOffset();
 const IRRIGATION_CYCLE_INTERVAL = 7200000; //miliseconds = 2 hours
 const TEMPERATURE_AND_HUMIDITY_CYCLE_INTERVAL = 900000; //miliseconds = 15 minutes
 const SAFETY_CHECK_INTERVAL = 5000; //miliseconds = 5 seconds
-const SAFETY_REENABLE_INTERVAL = 10800000; //miliseconds = 3 hours
 const WRITE_HISTORY_INTERVAL = 60000; //miliseconds = 1 minute
 const START_COOLING_TEMPERATURE_LIMIT = 50; //°C
 const DATA_HISTORY_LIMIT = 60; //irrigation cycles measurement history
-const SAFETY_SHUTDOWN_HISTORY_LIMIT = 300; //safety shutdowns history
+const SAFETY_EVENT_LOG_LIMIT = 100; //safety event log entries
 const TEMPERATURE_HUMIDITY_HISTORY_LIMIT = 672; //7 days × 96 readings/day (15 min interval)
 const DAY_IRRIGATION_LIMIT = 3;
 const PUMP_ACTIVATION_DURATION = 30000; //miliseconds = 30 seconds
@@ -75,18 +74,20 @@ export default class Irrigation {
 		});
 
 		this._safetyShutdown = false;
-		this._safetyShutdownInterval = null;
+		this._lastSafetyStates = [null, null, null];
+		this._safetyEventLog = [];
 		this._irrigationRunning = false;
 		this._coolingFansActivated = false;
 		this._previousHumidity = 0;
 		this._moistureSensorsDataHistory = {};
-		this._safetyShutdownsHistory = {};
 		this._temperatureHumidityHistory = {};
 		this._lastSensorReadings = new Array(gpioPumpsPins.length + mcpPumpPins.length).fill(null);
 		this._activePumpIndex = null;
 		this._lastTemperature = null;
 		this._lastHumidity = null;
 		this._lastCpuTemperature = null;
+		this._lastIrrigationCycleStartTime = null;
+		this._lastIrrigationCycleEndTime = null;
 
 		this._loadHistoryFromFiles();
 	}
@@ -239,6 +240,7 @@ export default class Irrigation {
 		}
 
 		this._irrigationRunning = true;
+		this._lastIrrigationCycleStartTime = new Date();
 
 		try {
 
@@ -279,7 +281,9 @@ export default class Irrigation {
 			}
 
 			this._storeDataToHistory(allSensorData);
+			await this._getAllMoistureSensorsData();
 		} finally {
+			this._lastIrrigationCycleEndTime = new Date();
 			this._irrigationRunning = false;
 		}
 	}
@@ -312,32 +316,84 @@ export default class Irrigation {
 	}
 
 	_safetyCheckCycle() {
-		const safetySensorData1 = this._getSensorData(this._safetySensor1);
-		const safetySensorData2 = this._getSensorData(this._safetySensor2);
-		const safetySensorData3 = this._getSensorData(this._safetySensor3);
+		const sensors = [this._safetySensor1, this._safetySensor2, this._safetySensor3];
+		const pins    = [safetyPin1, safetyPin2, safetyPin3];
 
-		if (
-			!this._isMoistureSensorOutOfWater(safetySensorData1) ||
-			!this._isMoistureSensorOutOfWater(safetySensorData2) ||
-			!this._isMoistureSensorOutOfWater(safetySensorData3)
-		) {
-			this._safetyShutdown = true;
-			this._storeSafetyShutdownToHistory();
+		for (let i = 0; i < sensors.length; i++) {
+			const isWet = !this._isMoistureSensorOutOfWater(this._getSensorData(sensors[i]));
+			const prev  = this._lastSafetyStates[i];
 
-			if (!this._safetyShutdownInterval) {
-				this._safetyShutdownInterval = setTimeout(() => {
-					this._safetyShutdown = false;
-					this._safetyShutdownInterval = null;
-				}, SAFETY_REENABLE_INTERVAL);
+			if (isWet && prev !== true) {
+				this._safetyShutdown = true;
+				const startTime = this._getActualCZDate().toUTCString();
+				this._safetyEventLog.push({ type: 'sensor', sensor: i + 1, pin: pins[i], startTime, endTime: null });
+				if (this._safetyEventLog.length > SAFETY_EVENT_LOG_LIMIT) this._safetyEventLog.shift();
+				console.warn(`[SAFETY] Sensor ${i + 1} (GPIO ${pins[i]}) detects water — shutdown activated`);
+				this._sendDiscordNotification(`⚠️ SAFETY SHUTDOWN — Sensor ${i + 1} (GPIO ${pins[i]}) detekoval vodu!`);
 			}
+
+			if (!isWet && prev === true) {
+				const endTime = this._getActualCZDate().toUTCString();
+				const openEntry = [...this._safetyEventLog].reverse()
+					.find(e => e.type === 'sensor' && e.sensor === i + 1 && e.endTime === null);
+				if (openEntry) {
+					openEntry.endTime = endTime;
+					const mins = Math.round((new Date(endTime) - new Date(openEntry.startTime)) / 60000);
+					console.log(`[SAFETY] Sensor ${i + 1} (GPIO ${pins[i]}) dry again — was wet for ${mins} min`);
+				}
+			}
+
+			this._lastSafetyStates[i] = isWet;
 		}
+	}
+
+	manualShutdown() {
+		this._safetyShutdown = true;
+		const time = this._getActualCZDate().toUTCString();
+		this._safetyEventLog.push({ type: 'manual_stop', time });
+		if (this._safetyEventLog.length > SAFETY_EVENT_LOG_LIMIT) this._safetyEventLog.shift();
+		console.log('[SAFETY] Manual shutdown activated');
+	}
+
+	resumeIrrigation() {
+		this._safetyShutdown = false;
+		const time = this._getActualCZDate().toUTCString();
+		this._safetyEventLog.push({ type: 'manual_resume', time });
+		if (this._safetyEventLog.length > SAFETY_EVENT_LOG_LIMIT) this._safetyEventLog.shift();
+		console.log('[SAFETY] Irrigation resumed manually');
+	}
+
+	async sendTestNotification() {
+		const url = process.env.DISCORD_WEBHOOK_URL;
+		if (!url) return false;
+		try {
+			await fetch(url, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ content: '✅ Test notifikace z irrigation systému — Discord webhook funguje správně.' }),
+			});
+			return true;
+		} catch (err) {
+			console.warn('[Discord] Test notification failed:', err.message);
+			return false;
+		}
+	}
+
+	_sendDiscordNotification(message) {
+		const url = process.env.DISCORD_WEBHOOK_URL;
+		if (!url) return;
+		fetch(url, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ content: message }),
+		}).catch(err => console.warn('[Discord] Notification failed:', err.message));
 	}
 
 	_loadHistoryFromFiles() {
 		const files = [
-			{ path: 'irrigationHistory.txt',          target: '_moistureSensorsDataHistory'   },
-			{ path: 'safetyShutdownsHistory.txt',     target: '_safetyShutdownsHistory'       },
-			{ path: 'temperatureHumidityHistory.txt', target: '_temperatureHumidityHistory'   },
+			{ path: 'irrigationHistory.txt',          target: '_moistureSensorsDataHistory' },
+			{ path: 'safetyEventLog.txt',             target: '_safetyEventLog'             },
+			{ path: 'temperatureHumidityHistory.txt', target: '_temperatureHumidityHistory' },
 		];
 
 		for (const { path, target } of files) {
@@ -354,53 +410,21 @@ export default class Irrigation {
 	}
 
 	_writeHistoryCycle() {
-		let irrigationHistory = null;
-		let safetyShutdownsHistory = null;
-		let temperatureHumidityHistory = null;
+		const writes = [
+			{ path: 'irrigationHistory.txt',          data: this._moistureSensorsDataHistory },
+			{ path: 'safetyEventLog.txt',             data: this._safetyEventLog             },
+			{ path: 'temperatureHumidityHistory.txt', data: this._temperatureHumidityHistory },
+		];
 
-		try {
-			irrigationHistory = JSON.stringify(this._moistureSensorsDataHistory);
-		}
-		catch (err) {
-			console.warn(err);
-		}
-
-		try {
-			safetyShutdownsHistory = JSON.stringify(this._safetyShutdownsHistory);
-		}
-		catch (err) {
-			console.warn(err);
-		}
-
-		try {
-			temperatureHumidityHistory = JSON.stringify(this._temperatureHumidityHistory);
-		}
-		catch (err) {
-			console.warn(err);
-		}
-
-		if (irrigationHistory) {
-			fs.writeFile("irrigationHistory.txt", irrigationHistory, (err) => {
-				if (err) {
-					console.warn(err);
-				}
-			});
-		}
-
-		if (safetyShutdownsHistory) {
-			fs.writeFile("safetyShutdownsHistory.txt", safetyShutdownsHistory, (err) => {
-				if (err) {
-					console.warn(err);
-				}
-			});
-		}
-
-		if (temperatureHumidityHistory) {
-			fs.writeFile("temperatureHumidityHistory.txt", temperatureHumidityHistory, (err) => {
-				if (err) {
-					console.warn(err);
-				}
-			});
+		for (const { path, data } of writes) {
+			let serialized;
+			try {
+				serialized = JSON.stringify(data);
+			} catch (err) {
+				console.warn(err);
+				continue;
+			}
+			fs.writeFile(path, serialized, err => { if (err) console.warn(err); });
 		}
 	}
 
@@ -415,18 +439,7 @@ export default class Irrigation {
 		}
 	}
 
-	_storeSafetyShutdownToHistory() {
-		const actualDate = this._getActualCZDate();
-		const historyKeys = Object.keys(this._safetyShutdownsHistory);
-
-		this._safetyShutdownsHistory[actualDate.toUTCString()] = true;
-
-		if (historyKeys.length > SAFETY_SHUTDOWN_HISTORY_LIMIT) {
-			delete this._safetyShutdownsHistory[historyKeys[0]];
-		}
-	}
-
-	_storeTemperatureHumidityToHistory(temperature, humidity, cpuTemperature) {
+_storeTemperatureHumidityToHistory(temperature, humidity, cpuTemperature) {
 		const actualDate = this._getActualCZDate();
 		const historyKeys = Object.keys(this._temperatureHumidityHistory);
 
@@ -565,6 +578,13 @@ export default class Irrigation {
 	}
 
 	getStatus() {
+		const toCZString = d => {
+			if (!d) return null;
+			const shifted = new Date(d.getTime());
+			shifted.setUTCHours(shifted.getUTCHours() + 2);
+			return shifted.toUTCString();
+		};
+
 		return {
 			sensorReadings: this._lastSensorReadings,
 			activePumpIndex: this._activePumpIndex,
@@ -575,6 +595,14 @@ export default class Irrigation {
 			humidity: this._lastHumidity,
 			cpuTemperature: this._lastCpuTemperature,
 			temperatureHistory: this._getRecentTemperatureHistory(),
+			irrigationRunning: this._irrigationRunning,
+			lastIrrigationTime: toCZString(this._lastIrrigationCycleEndTime),
+			nextIrrigationTime: toCZString(
+				this._lastIrrigationCycleStartTime
+					? new Date(this._lastIrrigationCycleStartTime.getTime() + IRRIGATION_CYCLE_INTERVAL)
+					: null
+			),
+			safetyLog: this._safetyEventLog.slice(-20),
 		};
 	}
 

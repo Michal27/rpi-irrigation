@@ -8,6 +8,7 @@ export function createServer(irrigation) {
 	const app = express();
 
 	app.use(express.static(join(__dirname, 'public')));
+	app.use(express.json());
 
 	app.get('/chart.min.js', (req, res) => {
 		res.sendFile(join(__dirname, '../node_modules/chart.js/dist/chart.umd.js'));
@@ -26,6 +27,21 @@ export function createServer(irrigation) {
 		send();
 		const interval = setInterval(send, 2000);
 		req.on('close', () => clearInterval(interval));
+	});
+
+	app.post('/api/test/discord', async (req, res) => {
+		const sent = await irrigation.sendTestNotification();
+		res.json({ sent });
+	});
+
+	app.post('/api/safety/shutdown', (req, res) => {
+		irrigation.manualShutdown();
+		res.json({ success: true });
+	});
+
+	app.post('/api/safety/resume', (req, res) => {
+		irrigation.resumeIrrigation();
+		res.json({ success: true });
 	});
 
 	app.post('/api/irrigate/:index', async (req, res) => {

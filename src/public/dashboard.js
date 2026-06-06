@@ -19,19 +19,19 @@ const PLANT_CATALOG = {
 //   circular: true  — pot has round/oval shape
 //   plant: string   — plant ID from PLANT_CATALOG; omit to show no icon
 const POT_LAYOUT = [
-    { index: 12, col: 1, row: 1, rowSpan: 3, label: '13', portrait: true, plant: 'tomato-red'    },  // short side — LEFT, portrait
-    { index: 0,  col: 2, row: 1, label: '1',  plant: 'tomato-red'    },  // single row
+    { index: 0,  col: 1, row: 1, rowSpan: 3, label: '13', portrait: true, plant: 'tomato-red'    },  // short side — LEFT, portrait
+    { index: 6,  col: 2, row: 1, label: '1',  plant: 'tomato-red'    },  // single row
     { index: 1,  col: 3, row: 1, label: '2',  plant: 'tomato-orange' },
     { index: 2,  col: 4, row: 1, label: '3',  plant: 'tomato-orange' },
     { index: 3,  col: 5, row: 1, label: '4',  plant: 'daffodil', circular: true },
-    { index: 4,  col: 2, row: 3, label: '5',  plant: 'chives'        },  // double row — top shelf
-    { index: 5,  col: 3, row: 3, label: '6',  plant: 'lettuce'       },
-    { index: 6,  col: 4, row: 3, label: '7',  plant: 'strawberry'    },
-    { index: 7,  col: 5, row: 3, label: '8',  plant: 'mint', circular: true },
-    { index: 8,  col: 2, row: 4, label: '9',  plant: 'tomato-yellow' },  // double row — bottom shelf
-    { index: 9,  col: 3, row: 4, label: '10', plant: 'tomato-orange' },
-    { index: 10, col: 4, row: 4, label: '11', plant: 'strawberry'    },
-    { index: 11, col: 5, row: 4, label: '12', plant: 'lettuce'       },
+    { index: 10, col: 2, row: 3, label: '5',  plant: 'chives'        },  // double row — top shelf
+    { index: 11, col: 3, row: 3, label: '6',  plant: 'lettuce'       },
+    { index: 5,  col: 4, row: 3, label: '7',  plant: 'strawberry'    },
+    { index: 12, col: 5, row: 3, label: '8',  plant: 'mint', circular: true },
+    { index: 7,  col: 2, row: 4, label: '9',  plant: 'tomato-yellow' },  // double row — bottom shelf
+    { index: 8,  col: 3, row: 4, label: '10', plant: 'tomato-orange' },
+    { index: 4,  col: 4, row: 4, label: '11', plant: 'strawberry'    },
+    { index: 9,  col: 5, row: 4, label: '12', plant: 'lettuce'       },
 ];
 
 // ── Build balcony grid ─────────────────────────────────────────────────────
@@ -173,6 +173,23 @@ function applyStatus(status) {
     }
 
     document.getElementById('safety-alert').hidden = !status.safetyShutdown;
+    document.getElementById('cycle-active').hidden = !status.irrigationRunning;
+
+    document.getElementById('last-cycle-value').textContent =
+        status.lastIrrigationTime ? formatTime(status.lastIrrigationTime) : '—';
+    document.getElementById('next-cycle-value').textContent =
+        status.nextIrrigationTime ? formatTime(status.nextIrrigationTime) : '—';
+
+    const toggleBtn = document.getElementById('safety-toggle-btn');
+    if (status.safetyShutdown) {
+        toggleBtn.textContent = '▶ Obnovit zavlažování';
+        toggleBtn.className = 'safety-toggle-btn safety-toggle-resume';
+    } else {
+        toggleBtn.textContent = '⏹ Zastavit zavlažování';
+        toggleBtn.className = 'safety-toggle-btn safety-toggle-stop';
+    }
+
+    renderSafetyLog(status.safetyLog ?? []);
 
     const pumpsBlocked = status.safetyShutdown || status.tankEmpty || status.activePumpIndex !== null;
 
@@ -210,6 +227,97 @@ function applyStatus(status) {
         chart.update('none');
     }
 }
+
+// ── Safety log ─────────────────────────────────────────────────────────────
+
+function formatDuration(startStr, endStr) {
+    const mins = Math.round((new Date(endStr) - new Date(startStr)) / 60000);
+    if (mins < 60) return `${mins} min`;
+    return `${Math.floor(mins / 60)} h ${mins % 60} min`;
+}
+
+let lastSafetyLogLength = 0;
+
+function renderSafetyLog(log) {
+    if (log.length === lastSafetyLogLength) return;
+    lastSafetyLogLength = log.length;
+
+    const container = document.getElementById('safety-log');
+    if (log.length === 0) {
+        container.innerHTML = '<p class="safety-log-empty">Žádné záznamy.</p>';
+        return;
+    }
+
+    const rows = [...log].reverse().map(entry => {
+        if (entry.type === 'sensor') {
+            const from = formatTime(entry.startTime);
+            const active = entry.endTime === null;
+            const to   = active ? '<span class="safety-log-active">probíhá</span>' : formatTime(entry.endTime);
+            const dur  = active ? '' : ` (${formatDuration(entry.startTime, entry.endTime)})`;
+            return `<tr>
+                <td><span class="safety-log-wet">Sensor ${entry.sensor} (GPIO ${entry.pin})</span></td>
+                <td>${from}</td>
+                <td>${to}${dur}</td>
+                <td>Sensor</td>
+            </tr>`;
+        }
+        const time = formatTime(entry.time);
+        const label = entry.type === 'manual_stop' ? 'Ruční zastavení' : 'Ruční obnovení';
+        return `<tr class="safety-log-manual">
+            <td>${label}</td>
+            <td>${time}</td>
+            <td>—</td>
+            <td>Manuální</td>
+        </tr>`;
+    }).join('');
+
+    container.innerHTML = `<table class="safety-log-table">
+        <thead><tr><th>Událost</th><th>Od</th><th>Do</th><th>Typ</th></tr></thead>
+        <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ── Safety toggle button ───────────────────────────────────────────────────
+
+document.getElementById('safety-toggle-btn').addEventListener('click', async () => {
+    const isShutdown = document.getElementById('safety-toggle-btn')
+        .classList.contains('safety-toggle-resume');
+    const msg = isShutdown
+        ? 'Opravdu chcete obnovit zavlažování?'
+        : 'Opravdu chcete zastavit zavlažování?';
+    if (!confirm(msg)) return;
+    const action = isShutdown ? 'resume' : 'shutdown';
+    try {
+        await fetch(`/api/safety/${action}`, { method: 'POST' });
+    } catch (err) {
+        console.error('Safety toggle failed:', err);
+    }
+});
+
+// ── Test Discord notification ──────────────────────────────────────────────
+
+document.getElementById('test-discord-btn').addEventListener('click', async () => {
+    const btn    = document.getElementById('test-discord-btn');
+    const result = document.getElementById('test-discord-result');
+    btn.disabled = true;
+    result.textContent = '…odesílám';
+    result.style.color = '#6b7280';
+    try {
+        const res  = await fetch('/api/test/discord', { method: 'POST' });
+        const data = await res.json();
+        if (data.sent) {
+            result.textContent = '✓ Zpráva odeslána';
+            result.style.color = '#22c55e';
+        } else {
+            result.textContent = '✗ DISCORD_WEBHOOK_URL není nastavena';
+            result.style.color = '#f97316';
+        }
+    } catch {
+        result.textContent = '✗ Chyba spojení';
+        result.style.color = '#ef4444';
+    }
+    btn.disabled = false;
+});
 
 // ── Manual irrigation ──────────────────────────────────────────────────────
 
