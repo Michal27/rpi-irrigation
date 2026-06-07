@@ -561,20 +561,42 @@ _storeTemperatureHumidityToHistory(temperature, humidity, cpuTemperature) {
 
 	async _activateGpioPump(pump) {
 		this._activePumpIndex = this._gpioPumps.indexOf(pump);
-		pump.writeSync(Gpio.LOW);
-		await this._sleep(PUMP_ACTIVATION_DURATION);
-		pump.writeSync(Gpio.HIGH);
-		this._activePumpIndex = null;
-		return 0;
+		try {
+			pump.writeSync(Gpio.LOW);
+			await this._sleep(PUMP_ACTIVATION_DURATION);
+			pump.writeSync(Gpio.HIGH);
+		} catch (err) {
+			console.error(`[PUMP] GPIO write error (index ${this._activePumpIndex}): ${err.message}`);
+			try { pump.writeSync(Gpio.HIGH); } catch {}
+		} finally {
+			this._activePumpIndex = null;
+		}
 	}
 
 	async _activateMcpPump(pumpPin) {
 		this._activePumpIndex = this._gpioPumps.length + mcpPumpPins.indexOf(pumpPin);
-		this._mcp.digitalWrite(pumpPin, this._mcp.LOW);
-		await this._sleep(PUMP_ACTIVATION_DURATION);
-		this._mcp.digitalWrite(pumpPin, this._mcp.HIGH);
-		this._activePumpIndex = null;
-		return 0;
+		try {
+			this._mcp.digitalWrite(pumpPin, this._mcp.LOW);
+			await this._sleep(PUMP_ACTIVATION_DURATION);
+			this._mcp.digitalWrite(pumpPin, this._mcp.HIGH);
+		} catch (err) {
+			console.error(`[PUMP] MCP write error (index ${this._activePumpIndex}): ${err.message}`);
+			try { this._mcp.digitalWrite(pumpPin, this._mcp.HIGH); } catch {}
+		} finally {
+			this._activePumpIndex = null;
+		}
+	}
+
+	_computeNextIrrigationTime(lastStart) {
+		if (!lastStart) return null;
+		const candidate = new Date(lastStart.getTime() + IRRIGATION_CYCLE_INTERVAL);
+		// Convert to CZ time (UTC+2) to check the daytime window (08:00–23:59 CZ)
+		const czDate = new Date(candidate.getTime() + 2 * 3600000);
+		if (czDate.getUTCHours() < 8) {
+			czDate.setUTCHours(8, 0, 0, 0);
+			return new Date(czDate.getTime() - 2 * 3600000);
+		}
+		return candidate;
 	}
 
 	getStatus() {
@@ -598,9 +620,7 @@ _storeTemperatureHumidityToHistory(temperature, humidity, cpuTemperature) {
 			irrigationRunning: this._irrigationRunning,
 			lastIrrigationTime: toCZString(this._lastIrrigationCycleEndTime),
 			nextIrrigationTime: toCZString(
-				this._lastIrrigationCycleStartTime
-					? new Date(this._lastIrrigationCycleStartTime.getTime() + IRRIGATION_CYCLE_INTERVAL)
-					: null
+				this._computeNextIrrigationTime(this._lastIrrigationCycleStartTime)
 			),
 			safetyLog: this._safetyEventLog.slice(-20),
 		};
