@@ -23,7 +23,7 @@ const POT_LAYOUT = [
     { index: 6,  col: 2, row: 1, label: '1',  plant: 'tomato-red'    },  // single row
     { index: 1,  col: 3, row: 1, label: '2',  plant: 'tomato-orange' },
     { index: 2,  col: 4, row: 1, label: '3',  plant: 'tomato-orange' },
-    { index: 3,  col: 5, row: 1, label: '4',  plant: 'daffodil', circular: true },
+    { index: 9,  col: 5, row: 1, label: '4',  plant: 'daffodil', circular: true },
     { index: 10, col: 2, row: 3, label: '5',  plant: 'chives'        },  // double row — top shelf
     { index: 11, col: 3, row: 3, label: '6',  plant: 'lettuce'       },
     { index: 5,  col: 4, row: 3, label: '7',  plant: 'strawberry'    },
@@ -31,7 +31,7 @@ const POT_LAYOUT = [
     { index: 7,  col: 2, row: 4, label: '9',  plant: 'tomato-yellow' },  // double row — bottom shelf
     { index: 8,  col: 3, row: 4, label: '10', plant: 'tomato-orange' },
     { index: 4,  col: 4, row: 4, label: '11', plant: 'strawberry'    },
-    { index: 9,  col: 5, row: 4, label: '12', plant: 'lettuce'       },
+    { index: 3,  col: 5, row: 4, label: '12', plant: 'lettuce'       },
 ];
 
 // ── Build balcony grid ─────────────────────────────────────────────────────
@@ -334,6 +334,21 @@ grid.addEventListener('click', async (e) => {
         console.error('Irrigation request failed:', err);
         btn.disabled = false;
     }
+});
+
+// ── Manual sensor read ─────────────────────────────────────────────────────
+
+document.getElementById('sensor-read-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('sensor-read-btn');
+    btn.disabled = true;
+    btn.textContent = '⟳ Měřím…';
+    try {
+        await fetch('/api/sensors/read', { method: 'POST' });
+    } catch (err) {
+        console.error('Sensor read request failed:', err);
+    }
+    btn.textContent = '⟳ Měření sensorů';
+    btn.disabled = false;
 });
 
 // ── SSE connection ─────────────────────────────────────────────────────────

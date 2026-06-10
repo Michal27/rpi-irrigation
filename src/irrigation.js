@@ -33,7 +33,13 @@ const DATA_HISTORY_LIMIT = 60; //irrigation cycles measurement history
 const SAFETY_EVENT_LOG_LIMIT = 100; //safety event log entries
 const TEMPERATURE_HUMIDITY_HISTORY_LIMIT = 672; //7 days × 96 readings/day (15 min interval)
 const DAY_IRRIGATION_LIMIT = 3;
-const PUMP_ACTIVATION_DURATION = 30000; //miliseconds = 30 seconds
+const PUMP_ACTIVATION_DURATION = 120000; //miliseconds = 2 minutes (default)
+const PUMP_DURATION_OVERRIDES = {
+    2:  60000,  // truhlík 3  (rajče oranžové)
+    3:  60000,  // truhlík 12 (salát)
+    10: 60000,  // truhlík 5  (pažitka)
+    11: 60000,  // truhlík 6  (salát)
+};
 
 // Free GPIO pins (BCM): 10, 15, 27
 // Free MCP23017 pins:   6, 7, 14, 15
@@ -519,21 +525,27 @@ _storeTemperatureHumidityToHistory(temperature, humidity, cpuTemperature) {
 		this._moistureSensorsPower.writeSync(Gpio.LOW);
 		await this._sleep(100);
 
-		for (let moistureSensor of this._moistureSensors) {
-			result.push(moistureSensor.readSync());
-			await this._sleep(50);
-		}
+		try {
+			for (let moistureSensor of this._moistureSensors) {
+				result.push(moistureSensor.readSync());
+				await this._sleep(50);
+			}
 
-		for (let pin of mcpSensorPins) {
-			result.push(await this._readMcpPin(pin));
-			await this._sleep(50);
+			for (let pin of mcpSensorPins) {
+				result.push(await this._readMcpPin(pin));
+				await this._sleep(50);
+			}
+		} finally {
+			// Deactivated by Gpio.HIGH because of EM Relay switching (active-LOW)
+			this._moistureSensorsPower.writeSync(Gpio.HIGH);
 		}
-
-		// Deactivated by Gpio.HIGH because of EM Relay switching (active-LOW)
-		this._moistureSensorsPower.writeSync(Gpio.HIGH);
 
 		this._lastSensorReadings = result;
 		return result;
+	}
+
+	async readSensorsNow() {
+		await this._getAllMoistureSensorsData();
 	}
 
 	// node-mcp23017's digitalRead is async/callback-based (uses readI2cBlock internally).
@@ -561,9 +573,10 @@ _storeTemperatureHumidityToHistory(temperature, humidity, cpuTemperature) {
 
 	async _activateGpioPump(pump) {
 		this._activePumpIndex = this._gpioPumps.indexOf(pump);
+		const duration = PUMP_DURATION_OVERRIDES[this._activePumpIndex] ?? PUMP_ACTIVATION_DURATION;
 		try {
 			pump.writeSync(Gpio.LOW);
-			await this._sleep(PUMP_ACTIVATION_DURATION);
+			await this._sleep(duration);
 			pump.writeSync(Gpio.HIGH);
 		} catch (err) {
 			console.error(`[PUMP] GPIO write error (index ${this._activePumpIndex}): ${err.message}`);
@@ -575,9 +588,10 @@ _storeTemperatureHumidityToHistory(temperature, humidity, cpuTemperature) {
 
 	async _activateMcpPump(pumpPin) {
 		this._activePumpIndex = this._gpioPumps.length + mcpPumpPins.indexOf(pumpPin);
+		const duration = PUMP_DURATION_OVERRIDES[this._activePumpIndex] ?? PUMP_ACTIVATION_DURATION;
 		try {
 			this._mcp.digitalWrite(pumpPin, this._mcp.LOW);
-			await this._sleep(PUMP_ACTIVATION_DURATION);
+			await this._sleep(duration);
 			this._mcp.digitalWrite(pumpPin, this._mcp.HIGH);
 		} catch (err) {
 			console.error(`[PUMP] MCP write error (index ${this._activePumpIndex}): ${err.message}`);

@@ -76,6 +76,12 @@ const mockIrrigation = {
         safetyShutdown = false;
         safetyEventLog.push({ type: 'manual_resume', time: new Date().toUTCString() });
     },
+
+    async readSensorsNow() {
+        sensorReadings.forEach((_, i) => {
+            sensorReadings[i] = Math.random() > 0.4 ? 1 : 0;
+        });
+    },
 };
 
 const app = createServer(mockIrrigation);

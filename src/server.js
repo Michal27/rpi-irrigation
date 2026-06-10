@@ -44,6 +44,11 @@ export function createServer(irrigation) {
 		res.json({ success: true });
 	});
 
+	app.post('/api/sensors/read', async (req, res) => {
+		await irrigation.readSensorsNow();
+		res.json({ success: true });
+	});
+
 	app.post('/api/irrigate/:index', async (req, res) => {
 		const index = parseInt(req.params.index, 10);
 		if (isNaN(index) || index < 0 || index >= 13) {
