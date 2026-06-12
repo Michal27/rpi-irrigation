@@ -35,10 +35,15 @@ const TEMPERATURE_HUMIDITY_HISTORY_LIMIT = 672; //7 days × 96 readings/day (15 
 const DAY_IRRIGATION_LIMIT = 3;
 const PUMP_ACTIVATION_DURATION = 120000; //miliseconds = 2 minutes (default)
 const PUMP_DURATION_OVERRIDES = {
-    2:  60000,  // truhlík 3  (rajče oranžové)
-    3:  60000,  // truhlík 12 (salát)
-    10: 60000,  // truhlík 5  (pažitka)
-    11: 60000,  // truhlík 6  (salát)
+    2:  60000,   // truhlík 3  (rajče oranžové)
+    3:  60000,   // truhlík 12 (salát)
+    4:  60000,   // truhlík 11 (jahoda)
+    7:  60000,   // truhlík 9  (rajče žluté)
+    8:  60000,   // truhlík 10 (rajče oranžové)
+    9:  180000,  // truhlík 4  (narcisky)
+    10: 60000,   // truhlík 5  (pažitka)
+    11: 60000,   // truhlík 6  (salát)
+    12: 60000,   // truhlík 8  (máta)
 };
 
 // Free GPIO pins (BCM): 10, 15, 27
