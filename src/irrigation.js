@@ -41,7 +41,7 @@ const PUMP_DURATION_OVERRIDES = {
     7:  60000,   // truhlík 9  (rajče žluté)
     8:  60000,   // truhlík 10 (rajče oranžové)
     9:  180000,  // truhlík 4  (narcisky)
-    10: 60000,   // truhlík 5  (pažitka)
+    10: 20000,   // truhlík 5  (pažitka)
     11: 60000,   // truhlík 6  (salát)
     12: 60000,   // truhlík 8  (máta)
 };
