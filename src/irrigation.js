@@ -36,15 +36,13 @@ const DAY_IRRIGATION_LIMIT = 3;
 const PUMP_ACTIVATION_DURATION = 120000; //miliseconds = 2 minutes (default)
 const PUMP_DURATION_OVERRIDES = {
     2:  60000,   // truhlík 3  (rajče oranžové)
-    3:  60000,   // truhlík 12 (salát)
-    4:  60000,   // truhlík 11 (jahoda)
+    4:  60000,   // truhlík 11 (salát)
     7:  60000,   // truhlík 9  (rajče žluté)
     8:  60000,   // truhlík 10 (rajče oranžové)
-    9:  180000,  // truhlík 4  (narcisky)
-    10: 20000,   // truhlík 5  (pažitka)
     11: 60000,   // truhlík 6  (salát)
-    12: 60000,   // truhlík 8  (máta)
+    12: 30000,   // truhlík 7  (pažitka)
 };
+const DISABLED_PUMP_INDICES = new Set([3, 5, 9, 10]);
 
 // Free GPIO pins (BCM): 10, 15, 27
 // Free MCP23017 pins:   6, 7, 14, 15
@@ -99,6 +97,7 @@ export default class Irrigation {
 		this._lastCpuTemperature = null;
 		this._lastIrrigationCycleStartTime = null;
 		this._lastIrrigationCycleEndTime = null;
+		this._forcedDailyIrrigations = {};
 
 		this._loadHistoryFromFiles();
 	}
@@ -264,8 +263,12 @@ export default class Irrigation {
 
 			// GPIO pumps (indices 0–6)
 			for (let index = 0; index < this._gpioPumps.length; index++) {
+				const forcedCount = this._forcedDailyIrrigations[index] ?? 0;
+				const needsWater = this._isMoistureSensorOutOfWater(allSensorData[index])
+					|| (forcedCount > 0 && currentDayHistoryData[index] < forcedCount);
 				if (
-					this._isMoistureSensorOutOfWater(allSensorData[index]) &&
+					!DISABLED_PUMP_INDICES.has(index) &&
+					needsWater &&
 					!this._isTankEmpty() &&
 					currentDayHistoryData[index] < DAY_IRRIGATION_LIMIT &&
 					!this._safetyShutdown
@@ -277,10 +280,15 @@ export default class Irrigation {
 			// MCP pumps (indices 7–12)
 			const mcpOffset = this._gpioPumps.length;
 			for (let index = 0; index < mcpPumpPins.length; index++) {
+				const absIndex = mcpOffset + index;
+				const forcedCount = this._forcedDailyIrrigations[absIndex] ?? 0;
+				const needsWater = this._isMoistureSensorOutOfWater(allSensorData[absIndex])
+					|| (forcedCount > 0 && currentDayHistoryData[absIndex] < forcedCount);
 				if (
-					this._isMoistureSensorOutOfWater(allSensorData[mcpOffset + index]) &&
+					!DISABLED_PUMP_INDICES.has(absIndex) &&
+					needsWater &&
 					!this._isTankEmpty() &&
-					currentDayHistoryData[mcpOffset + index] < DAY_IRRIGATION_LIMIT &&
+					currentDayHistoryData[absIndex] < DAY_IRRIGATION_LIMIT &&
 					!this._safetyShutdown
 				) {
 					await this._activateMcpPump(mcpPumpPins[index]);
@@ -374,6 +382,25 @@ export default class Irrigation {
 		console.log('[SAFETY] Irrigation resumed manually');
 	}
 
+	clearSafetyLog() {
+		this._safetyEventLog = [];
+		console.log('[SAFETY] Safety log cleared manually');
+	}
+
+	getForcedIrrigations() {
+		return { ...this._forcedDailyIrrigations };
+	}
+
+	setForcedIrrigation(pumpIndex, count) {
+		if (count === 0) {
+			delete this._forcedDailyIrrigations[pumpIndex];
+		} else {
+			this._forcedDailyIrrigations[pumpIndex] = count;
+		}
+		this._saveForcedIrrigationsConfig();
+		console.log(`[FORCED] Index ${pumpIndex} set to ${count}×/day`);
+	}
+
 	async sendTestNotification() {
 		const url = process.env.DISCORD_WEBHOOK_URL;
 		if (!url) return false;
@@ -418,6 +445,27 @@ export default class Irrigation {
 				// ENOENT = first run, no file yet — silently keep empty object
 			}
 		}
+
+		try {
+			const raw = fs.readFileSync('forcedIrrigationsConfig.json', 'utf8');
+			const parsed = JSON.parse(raw);
+			// Keys are stored as strings in JSON — convert back to numbers
+			this._forcedDailyIrrigations = Object.fromEntries(
+				Object.entries(parsed).map(([k, v]) => [Number(k), v])
+			);
+		} catch (err) {
+			if (err.code !== 'ENOENT') {
+				console.warn('Failed to load forcedIrrigationsConfig.json:', err.message);
+			}
+		}
+	}
+
+	_saveForcedIrrigationsConfig() {
+		fs.writeFile(
+			'forcedIrrigationsConfig.json',
+			JSON.stringify(this._forcedDailyIrrigations),
+			err => { if (err) console.warn('[FORCED] Config save failed:', err.message); }
+		);
 	}
 
 	_writeHistoryCycle() {
@@ -642,11 +690,12 @@ _storeTemperatureHumidityToHistory(temperature, humidity, cpuTemperature) {
 				this._computeNextIrrigationTime(this._lastIrrigationCycleStartTime)
 			),
 			safetyLog: this._safetyEventLog.slice(-20),
+			forcedIrrigations: this.getForcedIrrigations(),
 		};
 	}
 
 	async triggerManualIrrigation(pumpIndex) {
-		if (this._safetyShutdown || this._isTankEmpty() || this._irrigationRunning) {
+		if (DISABLED_PUMP_INDICES.has(pumpIndex) || this._safetyShutdown || this._isTankEmpty() || this._irrigationRunning) {
 			return false;
 		}
 

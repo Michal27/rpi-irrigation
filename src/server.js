@@ -44,8 +44,24 @@ export function createServer(irrigation) {
 		res.json({ success: true });
 	});
 
+	app.post('/api/safety/clear-log', (req, res) => {
+		irrigation.clearSafetyLog();
+		res.json({ success: true });
+	});
+
 	app.post('/api/sensors/read', async (req, res) => {
 		await irrigation.readSensorsNow();
+		res.json({ success: true });
+	});
+
+	app.post('/api/forced-irrigations', (req, res) => {
+		const { index, count } = req.body;
+		if (typeof index !== 'number' || typeof count !== 'number'
+				|| !Number.isInteger(index) || !Number.isInteger(count)
+				|| count < 0 || count > 8) {
+			return res.status(400).json({ error: 'Invalid params' });
+		}
+		irrigation.setForcedIrrigation(index, count);
 		res.json({ success: true });
 	});
 

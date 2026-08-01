@@ -25,7 +25,8 @@ const history        = generateHistory();
 
 let activePumpIndex  = null;
 let activePumpTimeout = null;
-let safetyShutdown   = false;
+let safetyShutdown        = false;
+let forcedIrrigations     = {};
 let safetyEventLog   = [
     { type: 'sensor',      sensor: 2, pin: 4,  startTime: new Date(Date.now() - 3600000 * 5).toUTCString(), endTime: new Date(Date.now() - 3600000 * 4).toUTCString() },
     { type: 'manual_stop', time: new Date(Date.now() - 3600000 * 2).toUTCString() },
@@ -52,6 +53,7 @@ const mockIrrigation = {
             lastIrrigationTime: cycleEndTime.toUTCString(),
             nextIrrigationTime: new Date(cycleStartTime.getTime() + 7200000).toUTCString(),
             safetyLog:          safetyEventLog.slice(-20),
+            forcedIrrigations:  { ...forcedIrrigations },
         };
     },
 
@@ -75,6 +77,19 @@ const mockIrrigation = {
     resumeIrrigation() {
         safetyShutdown = false;
         safetyEventLog.push({ type: 'manual_resume', time: new Date().toUTCString() });
+    },
+
+    clearSafetyLog() {
+        safetyEventLog.length = 0;
+    },
+
+    getForcedIrrigations() {
+        return { ...forcedIrrigations };
+    },
+
+    setForcedIrrigation(pumpIndex, count) {
+        if (count === 0) delete forcedIrrigations[pumpIndex];
+        else forcedIrrigations[pumpIndex] = count;
     },
 
     async readSensorsNow() {

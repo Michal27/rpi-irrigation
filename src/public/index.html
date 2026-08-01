@@ -56,8 +56,11 @@
         <section id="safety-log-section">
             <h2>Safety log</h2>
             <div id="safety-log"></div>
-            <button class="test-discord-btn" id="test-discord-btn">Testovat Discord notifikaci</button>
-            <span id="test-discord-result"></span>
+            <div style="display:flex; align-items:center; gap:1rem; margin-top:0.75rem; flex-wrap:wrap;">
+                <button class="test-discord-btn" id="test-discord-btn">Testovat Discord notifikaci</button>
+                <span id="test-discord-result"></span>
+                <button class="clear-log-btn" id="clear-log-btn">🗑 Vymazat log</button>
+            </div>
         </section>
 
         <section>
@@ -67,6 +70,30 @@
             </div>
         </section>
     </main>
+
+    <div id="force-modal" hidden>
+        <div class="force-modal-backdrop"></div>
+        <div class="force-modal-box">
+            <h3 class="force-modal-title">Automatické zavlažování</h3>
+            <p class="force-modal-sub" id="force-modal-sub"></p>
+            <p class="force-modal-hint">Počet zavlažení za den bez ohledu na sensor</p>
+            <div class="force-modal-options" id="force-modal-options">
+                <button data-n="0">Vypnuto</button>
+                <button data-n="1">1×</button>
+                <button data-n="2">2×</button>
+                <button data-n="3">3×</button>
+                <button data-n="4">4×</button>
+                <button data-n="5">5×</button>
+                <button data-n="6">6×</button>
+                <button data-n="7">7×</button>
+                <button data-n="8">8×</button>
+            </div>
+            <div class="force-modal-footer">
+                <button id="force-modal-save">Uložit</button>
+                <button id="force-modal-cancel">Zrušit</button>
+            </div>
+        </div>
+    </div>
 
     <script src="/chart.min.js"></script>
     <script src="/dashboard.js"></script>
