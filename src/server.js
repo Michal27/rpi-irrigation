@@ -1,0 +1,78 @@
+import express from 'express';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+export function createServer(irrigation) {
+	const app = express();
+
+	app.use(express.static(join(__dirname, 'public')));
+	app.use(express.json());
+
+	app.get('/chart.min.js', (req, res) => {
+		res.sendFile(join(__dirname, '../node_modules/chart.js/dist/chart.umd.js'));
+	});
+
+	app.get('/api/status', (req, res) => {
+		res.json(irrigation.getStatus());
+	});
+
+	app.get('/api/events', (req, res) => {
+		res.setHeader('Content-Type', 'text/event-stream');
+		res.setHeader('Cache-Control', 'no-cache');
+		res.setHeader('Connection', 'keep-alive');
+
+		const send = () => res.write(`data: ${JSON.stringify(irrigation.getStatus())}\n\n`);
+		send();
+		const interval = setInterval(send, 2000);
+		req.on('close', () => clearInterval(interval));
+	});
+
+	app.post('/api/test/discord', async (req, res) => {
+		const sent = await irrigation.sendTestNotification();
+		res.json({ sent });
+	});
+
+	app.post('/api/safety/shutdown', (req, res) => {
+		irrigation.manualShutdown();
+		res.json({ success: true });
+	});
+
+	app.post('/api/safety/resume', (req, res) => {
+		irrigation.resumeIrrigation();
+		res.json({ success: true });
+	});
+
+	app.post('/api/safety/clear-log', (req, res) => {
+		irrigation.clearSafetyLog();
+		res.json({ success: true });
+	});
+
+	app.post('/api/sensors/read', async (req, res) => {
+		await irrigation.readSensorsNow();
+		res.json({ success: true });
+	});
+
+	app.post('/api/forced-irrigations', (req, res) => {
+		const { index, count } = req.body;
+		if (typeof index !== 'number' || typeof count !== 'number'
+				|| !Number.isInteger(index) || !Number.isInteger(count)
+				|| count < 0 || count > 8) {
+			return res.status(400).json({ error: 'Invalid params' });
+		}
+		irrigation.setForcedIrrigation(index, count);
+		res.json({ success: true });
+	});
+
+	app.post('/api/irrigate/:index', async (req, res) => {
+		const index = parseInt(req.params.index, 10);
+		if (isNaN(index) || index < 0 || index >= 13) {
+			return res.status(400).json({ error: 'Invalid pump index' });
+		}
+		const success = await irrigation.triggerManualIrrigation(index);
+		res.json({ success });
+	});
+
+	return app;
+}

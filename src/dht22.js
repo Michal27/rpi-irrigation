@@ -49,10 +49,15 @@ export default class Dht22Sensor {
 	}
 
 	_readSensorData() {
-		return this._sensor.read(SENSOR_VERSION, this._gpioDataPin);
+		try {
+			return this._sensor.read(SENSOR_VERSION, this._gpioDataPin);
+		} catch (err) {
+			return { errors: 99, isValid: false };
+		}
 	}
 
 	_handleError() {
-		console.log('dht22 sensor reading error!');
+		const ts = new Date().toISOString();
+		console.warn(`[${ts}] dht22 sensor reading error — transient, will retry next cycle`);
 	}
 }

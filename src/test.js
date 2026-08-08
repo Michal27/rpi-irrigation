@@ -1,4 +1,4 @@
-import Irrigation from './irrigation.mjs';
+import Irrigation from './irrigation.js';
 
 const irrigation = new Irrigation();
 irrigation.test();
